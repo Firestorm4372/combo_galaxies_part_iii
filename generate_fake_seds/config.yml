@@ -1,0 +1,92 @@
+name: "fake_catalog_raw"
+ra: 53.11666
+dec: -27.80833
+number_source: 100000
+
+
+# filter list
+filters:
+  - jwst_f070w
+  - jwst_f090w
+  - jwst_f115w
+  - jwst_f150w
+  - jwst_f162m
+  - jwst_f182m
+  - jwst_f200w
+  - jwst_f210m
+  - jwst_f250m
+  - jwst_f277w
+  - jwst_moda_f277w
+  - jwst_modb_f277w
+  - jwst_f300m
+  - jwst_f335m
+  - jwst_moda_f335m
+  - jwst_modb_f335m
+  - jwst_f356w
+  - jwst_moda_f356w
+  - jwst_modb_f356w
+  - jwst_f410m
+  - jwst_moda_f410m
+  - jwst_modb_f410m
+  - jwst_f444w
+  - jwst_moda_f444w
+  - jwst_modb_f444w
+  - acs_wfc_f435w
+  - acs_wfc_f606w
+  - acs_wfc_f775w
+  - acs_wfc_f814w
+  - acs_wfc_f850lp
+  - wfc3_ir_f105w
+  - wfc3_ir_f125w
+  - wfc3_ir_f140w
+  - wfc3_ir_f160w
+
+# redshift range (flat prior)
+redshift:
+  min: 2.0
+  max: 14.0
+
+# flux normalization of F444W (flat prior)
+log_flux_f444w:  # in nJy
+  min: -1.0
+  max: 2.0
+
+# stellar population
+dust2:
+  mu: 0.3  # 0.5
+  sigma: 0.3 # 1.0
+  min: 0.0
+  max: 6.0
+log_sf_start:  # lookback time in Gyr
+  min: -3.0
+  max: -1.0  # 0.5 or 0.0
+log_tau:  # in Gyr
+  min: -2.0
+  max: 0.0
+igm_factor:
+  mu: 1.0
+  sigma: 0.5
+  min: 0.25
+  max: 3.0
+logzsol:
+  mu: -1.5  # -1.0
+  sigma: 0.5
+  min: -2.0
+  max: 0.0
+
+# morphology (normal priors)
+log_size:  # in arcsec
+  mu: -1.4
+  sigma: 1.0
+  min: -2.0
+  max: 0.4
+sersic:
+  mu: 1.0
+  sigma: 1.0
+  min: 0.5
+  max: 6.0
+q:
+  mu: 0.7
+  sigma: 0.3
+  min: 0.1
+  max: 1.0
