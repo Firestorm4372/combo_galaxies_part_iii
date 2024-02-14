@@ -89,6 +89,7 @@ class Generate():
         filter_data.add_column(physical_data['zred'], index=1)
         filter_data.add_columns(physical_data.columns[2:])
 
+        # write this as catalog.fits
         self.catalog_path = f'{self.folder_path}/catalog.fits'
         filter_data.write(self.catalog_path, format='fits', overwrite=True)
 
