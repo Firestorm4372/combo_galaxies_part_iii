@@ -195,6 +195,26 @@ class Select():
         self.selection_table_path = f'{self.selection_folder_path}/selection.fits'
         self.all_galaxies.write(self.selection_table_path, format='fits', overwrite=True)
 
+    def _convert_nano_to_micro_Jy(self) -> None:
+        for col_name in [*self.filters, *self.filter_errors]:
+            self.all_galaxies[col_name][:] *= 1e-3
+
+    def _EAZY_file_rows(self) -> list[list]:
+        column_names = ['id', 'zred', 'combo', *self.filters, *self.filter_errors]
+        EAZY_rows = [column_names]
+
+        self._convert_nano_to_micro_Jy()
+        for row in self.all_galaxies:
+            EAZY_rows.append([*row[column_names]])
+
+        return EAZY_rows
+
+    def save_EAZY_file(self) -> None:
+        EAZY_rows = self._EAZY_file_rows()
+        with open(f'{self.selection_folder_path}/EAZY_input.csv', 'w') as f:
+            csv_write = csv.writer(f)
+            csv_write.writerows(EAZY_rows)
+
     
     def create_and_save_galaxies(self, z_vals:list[float], combinations:list[int], frac_error:float=0.1,
                                  name:str='name', description:str='description') -> Table:
@@ -226,6 +246,7 @@ class Select():
 
         self.create_galaxies_table(z_vals, combinations, frac_error)
         self.save_galaxies_table(name, description)
+        self.save_EAZY_file()
         return self.all_galaxies
 
 
