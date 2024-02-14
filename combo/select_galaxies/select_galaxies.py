@@ -22,12 +22,22 @@ class Select():
         with fits.open(self.catalog_path) as hdul:
             self.catalog = Table(hdul[1].data)
 
+        # add in combo column to catalog
+            self.catalog.add_column(1, 2, 'combo')
+
         # extract filters
         with open(filter_list) as f:
             read = csv.reader(f)
             self.filters:list[str] = [r for r in read][0]
         self.filter_errors = [f'E{filt[1:]}' for filt in self.filters]
 
+        self.last_id:int = self.catalog[-1]['id']
+
+    def next_id(self) -> int:
+        """Returns the next id to be used, and iterates previous by one
+        (up to what has just been returned)."""
+        self.last_id += 1
+        return self.last_id
 
     def _select_galaxies(self, z:float, number:int) -> Table:
         """Select `number` galaxies at redshfit `z`"""
@@ -36,7 +46,7 @@ class Select():
         rng = np.random.default_rng()
         return Table(rng.choice(sub, number, replace=False))
     
-    def _filter_errors(self, filter_vals, filter_combo:float=None) -> tuple[np.ndarray, float] | list[float]:
+    def _one_filter_errors(self, filter_vals, filter_combo:float=None) -> tuple[np.ndarray, float] | list[float]:
         """
         Return the different errors in the single galaxy filter, and in the combinations filter.
         Errors as in OneNote lab book at end of 12/02.
@@ -70,10 +80,41 @@ class Select():
             error_combo = self.frac_error * filter_combo
             return error_vals, error_combo
         
+    def _combo_and_errors(self, single_galaxies:Table) -> Table:
+        """
+        Create new galaxy as a combo of the filters.
+        Add in errors for all filters.
+        
+        Parameters
+        ----------
+        single_galaxies : Table
+            Table of the single galaxies to add a combo to
+        
+        Returns
+        -------
+        galaxies : Table
+            With combo galaxy and all errors
+        """
+
+        combo = len(single_galaxies)
+        galaxies = single_galaxies.copy()
+        # add in new galaxy row, with no data
+        galaxies.insert_row(0, {'id': self.next_id(), 'combo': combo})
+
+        for filt, err in zip(self.filters, self.filter_errors):
+            filt_combo = np.sum(single_galaxies[filt])
+            # add filter combo to relevant filter
+            galaxies[filt][0] = filt_combo
+
+            err_vals, err_combo = self._one_filter_errors(single_galaxies[filt], filt_combo)
+            galaxies.add_column([err_combo, *err_vals], name=err)
+
+        return galaxies
+
 
     def create_galaxies_table(self, z_vals:list[float], combinations:list[int], frac_error:float=0.1) -> None:
         """
-        Select at each `z_val`, some random galaxies at each `combination`.
+        Select at each `z_val`, some random galaxies for each `combination`.
         Then apply relevant errors and create relevant flux combinations.
         Put all in a `Table` and save to FITS also.
         
@@ -87,19 +128,30 @@ class Select():
             Size of fractional error in the combination galaxies.
             From this, errors in the galaxies that make up the combo can be found.
         """
+
         self.frac_error = frac_error
+
+        list_galaxies:list[Table] = []
 
         for z in z_vals:
             for combo in combinations:
                 # extra relevant number of the single galaxies
                 single_galaxies = self._select_galaxies(z, combo)
+                galaxies = self._combo_and_errors(single_galaxies)
+                list_galaxies.append(galaxies)
 
+        # create one large table
+        d = dict()
+        for col in list_galaxies[0].colnames:
+            d[col] = [val for sub_table in list_galaxies for val in sub_table[col]]
+        
+        self.all_galaxies = Table(d)
 
 
 def main() -> None:
-    sel = Select('4_test')
-    print(sel.filters)
-    print(sel.filter_errors)
+    sel = Select('7_large')
+    sel.create_galaxies_table([2,3,10], [2,3,5])
+    print(sel.all_galaxies)
 
 if __name__ == '__main__':
     main()
