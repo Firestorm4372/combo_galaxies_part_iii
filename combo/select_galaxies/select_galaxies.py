@@ -1,3 +1,4 @@
+import os
 import csv
 
 import numpy as np
@@ -108,7 +109,7 @@ class Select():
         return galaxies
 
 
-    def create_galaxies_table(self, z_vals:list[float], combinations:list[int], frac_error:float=0.1) -> None:
+    def create_galaxies_table(self, z_vals:list[float], combinations:list[int], frac_error:float=0.1) -> Table:
         """
         Select at each `z_val`, some random galaxies for each `combination`.
         Then apply relevant errors and create relevant flux combinations.
@@ -123,8 +124,16 @@ class Select():
         frac_error : float, default 0.1
             Size of fractional error in the combination galaxies.
             From this, errors in the galaxies that make up the combo can be found.
+
+        Returns
+        -------
+        all_galaxies : Table
+            Astropy table of all the galaxies.
+            Also stored in attribute `self.all_galaxies`.
         """
 
+        self.z_vals = z_vals
+        self.combinations = combinations
         self.frac_error = frac_error
 
         list_galaxies:list[Table] = []
@@ -142,6 +151,78 @@ class Select():
             d[col] = [val for sub_table in list_galaxies for val in sub_table[col]]
         
         self.all_galaxies = Table(d)
+        return self.all_galaxies
+    
+
+    def _create_folder(self) -> None:
+        # open file with current selections, create if not exist
+        with open(f'{self.folder_path}/selections.txt', 'a+') as f:
+            f.seek(0)
+            lines = f.readlines()
+            try:
+                # one more than last idx
+                idx = int(lines[-2].split(' ')[0]) + 1
+            except:
+                idx = 0 # no previous
+
+            self.selection_folder_name = f'{idx}_{self.selection_name}'
+            self.selection_folder_path = f'{self.folder_path}/{self.selection_folder_name}'
+            # create folder
+            os.makedirs(self.selection_folder_path, exist_ok=True)
+            # append name and description to the sets.txt
+            f.writelines(f'{idx} {self.selection_name}\n\t{self.selection_description}\n')
+        
+        # add description, z_vals, and combinations
+        with open(f'{self.selection_folder_path}/properties.csv', 'w+') as f:
+            csv_write = csv.writer(f)
+
+            rows = [['description', self.selection_description], ['z_vals', *self.z_vals], ['combinations', *self.combinations]]
+            csv_write.writerows(rows)
+
+
+    def save_galaxies_table(self, name:str='name', description:str='description') -> None:
+        """Save the current `all_galaxies` table. With `name` and `description`."""
+        self.selection_name = name
+        self.selection_description = description
+
+        self._create_folder()
+        
+        self.selection_table_path = f'{self.selection_folder_path}/selection.fits'
+        self.all_galaxies.write(self.selection_table_path, format='fits', overwrite=True)
+
+    
+    def create_and_save_galaxies(self, z_vals:list[float], combinations:list[int], frac_error:float=0.1,
+                                 name:str='name', description:str='description') -> Table:
+        """
+        Select at each `z_val`, some random galaxies for each `combination`.
+        Then apply relevant errors and create relevant flux combinations.
+        Put all in a `Table` and save to FITS also.
+        
+        Parameters
+        ----------
+        z_vals : list[float]
+            List of z values to create the combos at
+        combos : list[int]
+            List of size of each combination (e.g. `[2,5]` will give combinations of 2 and of 5 galaxy filter fluxes)
+        frac_error : float, default 0.1
+            Size of fractional error in the combination galaxies.
+            From this, errors in the galaxies that make up the combo can be found.
+        name : str, Default 'name'
+            Name to save under
+        description : str, Default 'description'
+            Description of selection
+
+        Returns
+        -------
+        all_galaxies : Table
+            Astropy table of all the galaxies.
+            Also stored in attribute `self.all_galaxies`.
+        """
+
+        self.create_galaxies_table(z_vals, combinations, frac_error)
+        self.save_galaxies_table(name, description)
+        return self.all_galaxies
+
 
 
 def main() -> None:
