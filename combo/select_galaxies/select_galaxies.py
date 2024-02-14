@@ -46,7 +46,7 @@ class Select():
         rng = np.random.default_rng()
         return Table(rng.choice(sub, number, replace=False))
     
-    def _one_filter_errors(self, filter_vals, filter_combo:float=None) -> tuple[np.ndarray, float] | list[float]:
+    def _one_filter_errors(self, filter_vals, filter_combo:float=None) -> tuple[np.ndarray, float]:
         """
         Return the different errors in the single galaxy filter, and in the combinations filter.
         Errors as in OneNote lab book at end of 12/02.
@@ -64,21 +64,17 @@ class Select():
             Values of the errors across the different single galaxies
         error_combo : float
             Error in the combination filter.
-            If no `filter_combo` provided, not returned.
         """
 
         if filter_combo == None:
             filter_combo = np.sum(filter_vals)
         
         # frac_error of the singles squared is combo frac_error squared * square of sum / sum of squares
-        single_frac_error = np.sqrt(self.frac_error**2 * filter_combo**2 / np.sum(np.square(filter_combo)))
-        error_vals = single_frac_error * filter_vals
+        single_frac_error = self.frac_error * np.sqrt(filter_combo**2 / np.sum(np.square(filter_vals)))
+        error_vals = np.multiply(single_frac_error, filter_vals)
 
-        if filter_combo == None:
-            return error_vals
-        else:
-            error_combo = self.frac_error * filter_combo
-            return error_vals, error_combo
+        error_combo = self.frac_error * filter_combo
+        return error_vals, error_combo
         
     def _combo_and_errors(self, single_galaxies:Table) -> Table:
         """
@@ -99,7 +95,7 @@ class Select():
         combo = len(single_galaxies)
         galaxies = single_galaxies.copy()
         # add in new galaxy row, with no data
-        galaxies.insert_row(0, {'id': self.next_id(), 'combo': combo})
+        galaxies.insert_row(0, {'id': self.next_id(), 'zred': single_galaxies['zred'][0], 'combo': combo})
 
         for filt, err in zip(self.filters, self.filter_errors):
             filt_combo = np.sum(single_galaxies[filt])
