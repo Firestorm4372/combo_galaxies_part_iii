@@ -24,7 +24,7 @@ class Select():
             self.catalog = Table(hdul[1].data)
 
         # add in combo column to catalog
-            self.catalog.add_column(1, 2, 'combo')
+        self.catalog.add_column(1, 2, 'combo')
 
         # extract filters
         with open(filter_list) as f:
@@ -170,14 +170,7 @@ class Select():
             # create folder
             os.makedirs(self.selection_folder_path, exist_ok=True)
             # append name and description to the sets.txt
-            f.writelines(f'{idx} {self.selection_name}\n\t{self.selection_description}\n')
-        
-        # add description, z_vals, and combinations
-        with open(f'{self.selection_folder_path}/properties.csv', 'w+') as f:
-            csv_write = csv.writer(f)
-
-            rows = [['description', self.selection_description], ['z_vals', *self.z_vals], ['combinations', *self.combinations]]
-            csv_write.writerows(rows)
+            f.writelines(f'{idx} {self.selection_name}\n\t{self.selection_description}\n')      
 
 
     def save_galaxies_table(self, name:str='name', description:str='description') -> None:
@@ -186,6 +179,18 @@ class Select():
         self.selection_description = description
 
         self._create_folder()
+        
+        # add description, z_vals, combinations, filters
+        with open(f'{self.selection_folder_path}/properties.csv', 'w+') as f:
+            csv_write = csv.writer(f)
+
+            rows = [
+                ['description', self.selection_description],
+                ['z_vals', *self.z_vals],
+                ['combinations', *self.combinations],
+                ['filters', *self.filters]
+            ]
+            csv_write.writerows(rows)
         
         self.selection_table_path = f'{self.selection_folder_path}/selection.fits'
         self.all_galaxies.write(self.selection_table_path, format='fits', overwrite=True)
