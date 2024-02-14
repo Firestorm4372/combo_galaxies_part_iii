@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import argparse
 
 from astropy.io import fits
 from astropy.table import Table
@@ -115,11 +116,24 @@ class Generate():
         return gen
 
 
-def main() -> None:
-    gen = Generate.init_from_read('7_large')
-    # gen.fake_galaxies()
-    gen.parse_catalog()
+parser = argparse.ArgumentParser(
+    description='Produce fake seds catalog and then parse it for use in selection etc'
+)
+parser.add_argument('name', nargs='?', default='name', help="Name of fake seds catalog to be produced. Default 'name'.")
+parser.add_argument('description', nargs='?', default='description', help="Description of fake seds catalog. Default 'description'.")
+parser.add_argument('-c', '--config', default='generate_fake_seds/config.yml', help="Config file to use for generation. Default 'generate_fake_seds/config.yml'.")
+parser.add_argument('-d', '--data_path', default='.data', help="Path to store data in. Default '.data.")
 
+
+def main() -> None:
+    args = parser.parse_args()
+    gen = Generate(args.name, args.description, args.config, args.data_path)
+    print('Creating fake galaxies...')
+    gen.fake_galaxies()
+    print('Created fake galaxies.')
+    print('Parsing catalog...')
+    gen.parse_catalog()
+    print(f'Catalog parsed at {gen.folder_path}/catalog.fits')
 
 if __name__ == '__main__':
     main()
