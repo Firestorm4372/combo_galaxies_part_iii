@@ -116,7 +116,10 @@ class Generate():
 
 
 def main() -> None:
-    pass
+    gen = Generate.init_from_read('7_large')
+    # gen.fake_galaxies()
+    gen.parse_catalog()
+
 
 if __name__ == '__main__':
     main()
