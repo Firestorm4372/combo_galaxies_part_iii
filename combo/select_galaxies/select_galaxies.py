@@ -180,12 +180,13 @@ class Select():
 
         self._create_folder()
         
-        # add description, z_vals, combinations, filters
+        # add description, frac_error, z_vals, combinations, filters
         with open(f'{self.selection_folder_path}/properties.csv', 'w+') as f:
             csv_write = csv.writer(f)
 
             rows = [
                 ['description', self.selection_description],
+                ['frac_error', self.frac_error],
                 ['z_vals', *self.z_vals],
                 ['combinations', *self.combinations],
                 ['filters', *self.filters]
@@ -222,6 +223,7 @@ class Select():
         Select at each `z_val`, some random galaxies for each `combination`.
         Then apply relevant errors and create relevant flux combinations.
         Put all in a `Table` and save to FITS also.
+        Also save EAZY file.
         
         Parameters
         ----------

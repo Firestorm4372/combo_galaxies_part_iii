@@ -32,7 +32,7 @@ class RunEAZY():
             self.all_galaxies = Table(hdul[1].data)
             
     
-    def init_photoz(self, add_params:dict=None, param_file:str=None, translate_file='eazy_files/z_phot.translate') -> None:
+    def init_photoz(self, add_params:dict=dict(), param_file:str=None, translate_file='eazy_files/z_phot.translate') -> None:
         # don't use these 'default' params if params file given
         if param_file == None:
             params = {
