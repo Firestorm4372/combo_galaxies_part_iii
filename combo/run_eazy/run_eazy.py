@@ -57,8 +57,8 @@ class RunEAZY():
         """Runs `photoz.standardoutput`, but puts outputs in attributes"""
         self.zout, self.hdu = self.photoz.standard_output()
     
-    def EAZY_run(self):
-        self.init_photoz()
+    def EAZY_run(self, add_params:dict=dict(), param_file:str=None, translate_file='eazy_files/z_phot.translate'):
+        self.init_photoz(add_params, param_file, translate_file)
         self.photoz.fit_catalog()
         os.makedirs(f'{self.selection_folder_path}/eazy_out', exist_ok=True)
         self._standard_output()
