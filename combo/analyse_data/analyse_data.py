@@ -109,7 +109,12 @@ class Analyse():
             'chi2_combo': self.chi2_combo,
         })
 
-    def _combine(self) -> None:
+    def combine(self) -> None:
+        """
+        Perform the combination calculations, with mean and chi2.
+        then create Pandas Dataframe with all data
+        """
+        
         # reset, will then be filled
         self.z_red = []
         self.combo = []
@@ -120,17 +125,14 @@ class Analyse():
         self.chi2_combo = []
 
         # go through each galaxy, see if a combo or not
-        last = 0
-        for i, galaxy in enumerate(self.all_galaxies[1:], start=1):
+        for i, galaxy in enumerate(self.all_galaxies):
             if galaxy['combo'] != 1:
-                indiv_range = (last + 1, i)
+                indiv_range = (i+1, i+1 + galaxy['combo'])
 
                 # append zred and combo
-                self.z_red.append(self.all_galaxies['zred'][last])
-                self.combo.append(self.all_galaxies['combo'][last])
+                self.z_red.append(galaxy['zred'])
+                self.combo.append(galaxy['combo'])
                 self._data_single_combination(indiv_range)
-
-                last = i
 
         self._create_dataframe()
 
