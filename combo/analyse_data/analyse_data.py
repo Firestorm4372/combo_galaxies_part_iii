@@ -152,6 +152,7 @@ class Analyse(ProcessData):
         super().__init__(folder_name, selection_name, data_path)
         self.catastrophic = catastrophic
 
+
     def zred_zphot(self, combinations:list[int]=None, errors_lim:list[float]=None) -> list[plt.Figure]:
         """
         Produce figures showing plots of z_red compared to various z_phot methods.
@@ -228,9 +229,9 @@ class Analyse(ProcessData):
         return figs
     
 
-    def mean_abs_error_combo(self, z_split:list[float]=[], plot_no_catastrophic:bool=True) -> plt.Figure:
+    def rms_error_combo(self, z_split:list[float]=[], plot_no_catastrophic:bool=True) -> plt.Figure:
         """
-        Plot of means of absolute errors as compared to combo values.
+        Plot of root mean square errors as compared to combo values.
         Can bin sections of the redshift range.
 
         Parameters
@@ -276,8 +277,8 @@ class Analyse(ProcessData):
                     all_frac_errors = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
                     no_catastrophic_mask = (all_frac_errors <= self.catastrophic)
                     
-                    means_all.append(np.mean(np.abs(all_frac_errors)))
-                    means_no_cat.append(np.mean(np.abs(all_frac_errors[no_catastrophic_mask])))
+                    means_all.append(np.sqrt(np.mean(all_frac_errors**2)))
+                    means_no_cat.append(np.sqrt(np.mean(all_frac_errors[no_catastrophic_mask])))
                 
                 axs[i].plot(self.combinations, means_all, label=f'All {z_bin[j]} {z_bin[j+1]}')
                 if plot_no_catastrophic:
@@ -289,7 +290,7 @@ class Analyse(ProcessData):
                 axs[i].tick_params(left=False)
         
         fig.subplots_adjust(wspace=0.05)
-        axs[0].set_ylabel(r'Mean of $|\Delta z / (1 + z_\mathrm{red})|$')
+        axs[0].set_ylabel(r'RMS of $\Delta z / (1 + z_\mathrm{red})$')
         fig.supxlabel('Combinations')
 
         fig.legend(*axs[0].get_legend_handles_labels())
