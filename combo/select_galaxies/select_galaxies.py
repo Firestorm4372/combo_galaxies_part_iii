@@ -5,6 +5,85 @@ import numpy as np
 from astropy.io import fits
 from astropy.table import Table
 
+
+class Combine():
+    """
+    Given set of single galaxies, will produce the combination filter values, and errors in all filters
+
+    Attributes
+    ----------
+    single_galaxies : Table
+        Astropy table of the individual galaxies with no errors
+    combo_id : int
+        The id value to assign to the combination galaxy
+    filters, filter_errors : list[str]
+        Names of the columns of the filters, and the names of the error columns
+    fractional_error : float, default 0.1
+        Baseline fractional error to apply to each filter
+    """
+
+    def __init__(self, single_galaxies:Table, combo_id:int, filters:list[str], filter_errors:list[str], fracional_error:float=0.1) -> None:
+        self.galaxies = single_galaxies.copy() # create copy to later fill with new values
+        self.filters = filters
+        self.filter_errors = filter_errors
+
+        self.zred = self.galaxies['zred'][0]
+
+        # add in the row for the combination galaxy
+        self.galaxies.insert_row(0, {
+            'id': combo_id,
+            'zred': self.zred,
+            'combo': len(single_galaxies)
+        })
+
+    def _calc_combo_filters(self, equal_magnitude:str=None) -> None:
+        """
+        Calculate the values within each filter for the combination galaxy. 
+
+        NOT YET IMPLEMENTED
+        Set equal_magnitude to a filter name to equalise this filters value across all of the single galaxies
+        """
+
+        for filt in self.filters:
+            self.galaxies[filt][0] = np.sum(self.galaxies[filt][1:])
+
+    def _fraction_of_max_error_floor(self, idx:int, fraction:float=0.05) -> float:
+        """
+        Returns an error_floor value for a single galaxy, specified within `self.galaxies` by `idx`
+        
+        Parameters
+        ----------
+        idx : int
+            Index of galaxy to calculate from within `self.galaxies`
+        fraction : float, default 0.05
+            Fraction of the max filter value to return as error floor
+
+        Returns
+        -------
+        error_floor : float
+        """
+
+        filter_values = self.galaxies[idx][self.filters]
+        max_filter = np.max(filter_values)
+        return fraction * max_filter
+    
+    def _one_galaxy_errors(self, idx:int, error_floor:float=0) -> None:
+        """
+        Calculate and update the error values of a single galaxy.
+        If error_floor provided, this is used as a minimal error for all filters.
+
+        Parameters
+        ----------
+        idx : int
+            Index of galaxy to calculate from within `self.galaxies`
+        error_floor : float, default 0
+            If provided, gives a minimal value for the error in all filters
+        """
+
+        
+        
+
+
 class Select():
     def __init__(self, folder_name:str, data_path:str='.data', filter_list:str='filter_list.csv') -> None:
         # directory names
