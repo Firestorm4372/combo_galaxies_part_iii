@@ -16,72 +16,135 @@ class Combine():
         Astropy table of the individual galaxies with no errors
     combo_id : int
         The id value to assign to the combination galaxy
-    filters, filter_errors : list[str]
+    filters, error_filters : list[str]
         Names of the columns of the filters, and the names of the error columns
-    fractional_error : float, default 0.1
-        Baseline fractional error to apply to each filter
+    combo_fractional_error : float, default 0.1
+        Fractional error that is attempted to be achieved in the combination filter. 
+        Excluding the effects of error floors etc.
+
+    magnitude_filter : str, default F277W
+        Filter to base normalisation and fractional error floor off
+
+    is_flux_normalisation : bool, default False
+        Normalise all galaxies to have equal `magnitude_filter`
+    is_constant_error_floor : bool default False
+        Use a constant error floor across all of the individual galaxies.
+        Value to use will be `const_error_floor` if `True`.
+        Otherwise error floor is used as `fractional_error_floor` of `magnitude_filter`
+    is_combo_in_quadrature : bool, default True
+        Calculate the combination errors as quadrature of the individuals.
+        NOT IMPLEMENTED NON QUADRATURE (IE WITH AN ERROR FLOOR)
+
+    frac_error_floor : float, default 0.05
+        Fractional amount of `magnitude_filter` flux that will be used as the error floor.    
+    const_error_floor : float, default 0
+        Value to use if using a constant error floor
     """
 
-    def __init__(self, single_galaxies:Table, combo_id:int, filters:list[str], filter_errors:list[str], fracional_error:float=0.1) -> None:
+    def __init__(self,
+                 single_galaxies:Table, combo_id:int, filters:list[str], error_filters:list[str], combo_fractional_error:float=0.1,
+                 magnitude_filter:str='F277W',
+                 is_flux_normalisation:bool=False, is_constant_error:bool=False, is_combo_in_quadrature:bool=True,
+                 frac_error_floor:float=0.05, const_error_floor:float=0
+        ) -> None:
+
         self.galaxies = single_galaxies.copy() # create copy to later fill with new values
         self.filters = filters
-        self.filter_errors = filter_errors
+        self.error_filters = error_filters
+        self.combo_fractional_error = combo_fractional_error
 
+        self.magnitude_filter = magnitude_filter
+        self.is_flux_normalisation = is_flux_normalisation
+        self.is_constant_error = is_constant_error
+        self.is_combo_in_quadrature = is_combo_in_quadrature
+
+        self.frac_error_floor = frac_error_floor
+        self.const_error_floor = const_error_floor
+
+        # values that will be assigned to the combo galaxy
+        self.combo = len(self.galaxies)
+        self.combo_id = combo_id
         self.zred = self.galaxies['zred'][0]
 
-        # add in the row for the combination galaxy
-        self.galaxies.insert_row(0, {
-            'id': combo_id,
-            'zred': self.zred,
-            'combo': len(single_galaxies)
-        })
+        self.combo_flux_values = dict() # combo flux values, to fill and then add to the rows
+        self.combo_flux_errors = dict() # combo flux errors, to fill and then add to the rows
+        self.individual_fractional_errors = dict() # fractional errors that should be applied to each individual filter to acheive combo fractional error
 
-    def _calc_combo_filters(self, equal_magnitude:str=None) -> None:
-        """
-        Calculate the values within each filter for the combination galaxy. 
 
-        NOT YET IMPLEMENTED
-        Set equal_magnitude to a filter name to equalise this filters value across all of the single galaxies
-        """
+    def _calc_combo_flux_values(self) -> None:
+        for filt in self.filters:
+            self.combo_flux_values |= {filt: np.sum(self.galaxies[filt])}
+
+    def _calc_individual_fractional_errors(self) -> None:
+        # get combo flux values if not exist
+        if len(self.combo_flux_values) == 0:
+            self._calc_combo_flux_values()
 
         for filt in self.filters:
-            self.galaxies[filt][0] = np.sum(self.galaxies[filt][1:])
+            root_square_flux = np.sqrt(np.sum(np.square(self.galaxies[filt])))
+            indiv_frac_err = self.combo_fractional_error * \
+                self.combo_flux_values[filt] / root_square_flux
+            
+            self.individual_fractional_errors |= {filt: indiv_frac_err}
 
-    def _fraction_of_max_error_floor(self, idx:int, fraction:float=0.05) -> float:
-        """
-        Returns an error_floor value for a single galaxy, specified within `self.galaxies` by `idx`
+
+    def _flux_normalisation(self) -> None:
+        pass
+
+    def _get_individual_errors(self) -> None:
+        # dictionary of the different filters to then add as columns once filled
+        indiv_filter_errors = {filt_err: [] for filt_err in self.error_filters}
+
+        # make sure individual filter fractional errors calculated
+        if len(self.individual_fractional_errors) == 0:
+            self._calc_individual_fractional_errors()
+
+        if self.is_flux_normalisation:
+            self._flux_normalisation()
+
+        for gal in self.galaxies:
+            # get error floor as either the constant, or as a fraction of magnitude
+            if self.is_constant_error:
+                error_floor = self.const_error_floor
+            else:
+                error_floor = self.frac_error_floor * gal[self.magnitude_filter]
+
+            for filt in self.filters:
+                error = np.max(error_floor, self.individual_fractional_errors[filt] * gal[filt])
+                indiv_filter_errors[filt].append(error)
         
-        Parameters
-        ----------
-        idx : int
-            Index of galaxy to calculate from within `self.galaxies`
-        fraction : float, default 0.05
-            Fraction of the max filter value to return as error floor
+        # add in the error columns
+        self.galaxies.add_columns(indiv_filter_errors)
 
-        Returns
-        -------
-        error_floor : float
-        """
-
-        filter_values = self.galaxies[idx][self.filters]
-        max_filter = np.max(filter_values)
-        return fraction * max_filter
     
-    def _one_galaxy_errors(self, idx:int, error_floor:float=0) -> None:
-        """
-        Calculate and update the error values of a single galaxy.
-        If error_floor provided, this is used as a minimal error for all filters.
+    def _calc_combo_flux_errors(self) -> None:
+        if self.is_combo_in_quadrature:
+            for err_filt in self.error_filters:
+                combo_error = np.sqrt(np.sum(np.square(self.galaxies[err_filt])))
+                self.combo_flux_errors |= {err_filt: combo_error}
+        else:
+            raise Exception('Non quadrature combo errors not implemented')
+            
+    def _add_row_combo_galaxy(self) -> None:
+        if len(self.combo_flux_values) == 0:
+            self._calc_combo_flux_values()
+        if len(self.combo_flux_errors) == 0:
+            self._calc_combo_flux_errors()
 
-        Parameters
-        ----------
-        idx : int
-            Index of galaxy to calculate from within `self.galaxies`
-        error_floor : float, default 0
-            If provided, gives a minimal value for the error in all filters
-        """
+        combo_galaxy = {
+            'id': self.combo_id,
+            'zred': self.zred,
+            'combo': self.combo
+        } | self.combo_flux_values | self.combo_flux_errors
 
-        
-        
+        self.galaxies.insert_row(0, combo_galaxy)
+
+    def full_combine(self) -> Table:
+        self._get_individual_errors()
+        self._add_row_combo_galaxy()
+
+        return self.galaxies
+
 
 
 class Select():
@@ -125,67 +188,6 @@ class Select():
         sub = self.catalog[mask]
         rng = np.random.default_rng()
         return Table(rng.choice(sub, number, replace=False))
-    
-    def _one_filter_errors(self, filter_vals, filter_combo:float=None) -> tuple[np.ndarray, float]:
-        """
-        Return the different errors in the single galaxy filter, and in the combinations filter.
-        Errors as in OneNote lab book at end of 12/02.
-        
-        Parameters
-        ----------
-        filter_vals : array_like
-            Values in the filter across the different single galaxies
-        filter_combo : float, default None
-            Value in the filter for the combo galaxy. If not provided simply taken as sum of `filter_vals`
-
-        Returns
-        -------
-        error_vals : numpy.ndarray
-            Values of the errors across the different single galaxies
-        error_combo : float
-            Error in the combination filter.
-        """
-
-        if filter_combo == None:
-            filter_combo = np.sum(filter_vals)
-        
-        # frac_error of the singles squared is combo frac_error squared * square of sum / sum of squares
-        single_frac_error = self.frac_error * np.sqrt(filter_combo**2 / np.sum(np.square(filter_vals)))
-        error_vals = np.multiply(single_frac_error, filter_vals)
-
-        error_combo = self.frac_error * filter_combo
-        return error_vals, error_combo
-        
-    def _combo_and_errors(self, single_galaxies:Table) -> Table:
-        """
-        Create new galaxy as a combo of the filters.
-        Add in errors for all filters.
-        
-        Parameters
-        ----------
-        single_galaxies : Table
-            Table of the single galaxies to add a combo to
-        
-        Returns
-        -------
-        galaxies : Table
-            With combo galaxy and all errors
-        """
-
-        combo = len(single_galaxies)
-        galaxies = single_galaxies.copy()
-        # add in new galaxy row, with no data
-        galaxies.insert_row(0, {'id': self.next_id(), 'zred': single_galaxies['zred'][0], 'combo': combo})
-
-        for filt, err in zip(self.filters, self.filter_errors):
-            filt_combo = np.sum(single_galaxies[filt])
-            # add filter combo to relevant filter
-            galaxies[filt][0] = filt_combo
-
-            err_vals, err_combo = self._one_filter_errors(single_galaxies[filt], filt_combo)
-            galaxies.add_column([err_combo, *err_vals], name=err)
-
-        return galaxies
 
 
     def create_galaxies_table(self, z_vals:list[float], combinations:list[int], frac_error:float=0.1) -> Table:
@@ -221,7 +223,8 @@ class Select():
             for combo in combinations:
                 # extra relevant number of the single galaxies
                 single_galaxies = self._select_galaxies(z, combo)
-                galaxies = self._combo_and_errors(single_galaxies)
+                combiner = Combine(single_galaxies, self.next_id(), self.filters, self.filter_errors)
+                galaxies = combiner.full_combine()
                 list_galaxies.append(galaxies)
 
         # create one large table
