@@ -422,14 +422,20 @@ class Analyse(ProcessData):
             figs.append(fig)
 
         return figs
-            
+
+
+class SedPlot():
+    """
+    Should take in filter flux values, of one or more 
+    """
+    def __init__(self) -> None:
+        pass
 
 
 def main() -> None:
-    ana = Analyse('0_original', '6_upper_partial')
+    ana = Analyse('1_more_variation', '0_full_range')
     ana.combine()
-    figs = ana.hist_errors_combo([10,15,20], 20)
-    plt.show()
+    ana.zout()
 
 if __name__ == '__main__':
     main()
