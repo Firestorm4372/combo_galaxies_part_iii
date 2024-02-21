@@ -45,7 +45,7 @@ class Combine():
                  single_galaxies:Table, combo_id:int, filters:list[str], error_filters:list[str], combo_fractional_error:float=0.1,
                  magnitude_filter:str='F277W',
                  is_flux_normalisation:bool=False, is_constant_error:bool=False, is_combo_in_quadrature:bool=True,
-                 frac_error_floor:float=0.05, const_error_floor:float=0
+                 frac_error_floor:float=0.01, const_error_floor:float=0
         ) -> None:
 
         self.galaxies = single_galaxies.copy() # create copy to later fill with new values
@@ -92,8 +92,8 @@ class Combine():
         pass
 
     def _get_individual_errors(self) -> None:
-        # dictionary of the different filters to then add as columns once filled
-        indiv_filter_errors = {filt_err: [] for filt_err in self.error_filters}
+        # to store errors from each, list corresponding to filters of list of each galaxy
+        indiv_filter_errors = [[] for _ in range(len(self.filters))]
 
         # make sure individual filter fractional errors calculated
         if len(self.individual_fractional_errors) == 0:
@@ -109,12 +109,12 @@ class Combine():
             else:
                 error_floor = self.frac_error_floor * gal[self.magnitude_filter]
 
-            for filt in self.filters:
-                error = np.max(error_floor, self.individual_fractional_errors[filt] * gal[filt])
-                indiv_filter_errors[filt].append(error)
+            for i, filt in enumerate(self.filters):
+                error = max(error_floor, self.individual_fractional_errors[filt] * gal[filt])
+                indiv_filter_errors[i].append(error)
         
         # add in the error columns
-        self.galaxies.add_columns(indiv_filter_errors)
+        self.galaxies.add_columns(cols=indiv_filter_errors, names=self.error_filters)
 
     
     def _calc_combo_flux_errors(self) -> None:
@@ -336,8 +336,11 @@ class Select():
 
 
 def main() -> None:
-    sel = Select('7_large')
-    sel.create_galaxies_table([2,3,10], [2,3,5])
+    sel = Select('1_more_variation')
+    z_vals = np.arange(20, 140, dtype=int) / 10
+    z_vals = np.repeat(z_vals, 1)
+    combinations = [2,3]
+    sel.create_galaxies_table(z_vals, combinations, 0.1)
     print(sel.all_galaxies)
 
 if __name__ == '__main__':
