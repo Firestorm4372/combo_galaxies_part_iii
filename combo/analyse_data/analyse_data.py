@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.table import Table
 
+import eazy.hdf5
+
 class ProcessData():
     def __init__(self, folder_name:str, selection_name:str, data_path:str='.data') -> None:
         self.folder_name = folder_name
@@ -148,7 +150,7 @@ class Analyse(ProcessData):
             Fractional error in $Delta z / (1+z)$ past which fit is considered bad
     """
 
-    def __init__(self, folder_name: str, selection_name: str, data_path: str = '.data', catastrophic:float=0.1) -> None:
+    def __init__(self, folder_name:str, selection_name:str, data_path:str='.data', catastrophic:float=0.1) -> None:
         super().__init__(folder_name, selection_name, data_path)
         self.catastrophic = catastrophic
 
@@ -422,14 +424,32 @@ class Analyse(ProcessData):
             figs.append(fig)
 
         return figs
-            
+
+
+class SedPlot(Analyse):
+    """
+    Extension to Analyse that also gives option to view `eazy.PhotoZ` objects by using hdf5 file. 
+
+    Additional Attributes
+    ---------------------
+    full_photoz_init : bool, default False
+        Controls whether to do a full init of the PhotoZ object, or to just use Viewer.
+        Viewer is enough if just want SED Plots, need full for zphot_zspec etc.
+    """
+    
+    def __init__(self, folder_name:str, selection_name:str, data_path:str='.data', catastrophic:float=0.1, full_photoz_init:bool=False) -> None:
+        super().__init__(folder_name, selection_name, data_path, catastrophic)
+
+        if not full_photoz_init:
+            self.photoz = eazy.hdf5.Viewer(f'{self.eazy_photoz_path}.h5')
+        else:
+            self.photoz = eazy.hdf5.initialize_from_hdf5(f'{self.eazy_photoz_path}.h5')
 
 
 def main() -> None:
-    ana = Analyse('0_original', '6_upper_partial')
+    ana = Analyse('1_more_variation', '0_full_range')
     ana.combine()
-    figs = ana.hist_errors_combo([10,15,20], 20)
-    plt.show()
+    ana.zout()
 
 if __name__ == '__main__':
     main()

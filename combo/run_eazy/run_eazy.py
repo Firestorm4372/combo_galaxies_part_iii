@@ -4,6 +4,7 @@ import csv
 from astropy.io import fits
 from astropy.table import Table
 import eazy
+import eazy.hdf5
 
 class RunEAZY():
     def __init__(self, folder_name:str, selection_name:str, data_path:str='.data') -> None:
@@ -14,6 +15,7 @@ class RunEAZY():
         # path to the overall catalog, and individual selection
         self.folder_path = f'{data_path}/{folder_name}'
         self.selection_folder_path = f'{self.folder_path}/{selection_name}'
+        self.eazy_out_folder_path = f'{self.selection_folder_path}/eazy_out'
 
         # catalog description
         self.catalog_name = folder_name.split('_', maxsplit=1)[1]
@@ -44,8 +46,8 @@ class RunEAZY():
                 'Z_MIN': 1.,
                 'Z_MAX': 15.,
                 'Z_STEP': 0.01,
-                'OUTPUT_DIRECTORY': f'{self.selection_folder_path}/eazy_out',
-                'MAIN_OUTPUT_FILE': f'{self.selection_folder_path}/eazy_out/photoz'
+                'OUTPUT_DIRECTORY': self.eazy_out_folder_path,
+                'MAIN_OUTPUT_FILE': f'{self.eazy_out_folder_path}/photoz'
             } | add_params
         else:
             params = add_params
@@ -57,11 +59,26 @@ class RunEAZY():
         """Runs `photoz.standardoutput`, but puts outputs in attributes"""
         self.zout, self.hdu = self.photoz.standard_output()
     
-    def EAZY_run(self, add_params:dict=dict(), param_file:str=None, translate_file='eazy_files/z_phot.translate'):
+
+    def EAZY_run(self, add_params:dict=dict(), param_file:str=None, translate_file='eazy_files/z_phot.translate',
+                 standard_output:bool=True, hdf5_file:bool=True):
+        
         self.init_photoz(add_params, param_file, translate_file)
         self.photoz.fit_catalog()
-        os.makedirs(f'{self.selection_folder_path}/eazy_out', exist_ok=True)
-        self._standard_output()
+
+        if standard_output:
+            os.makedirs(self.eazy_out_folder_path, exist_ok=True)
+            self._standard_output()
+        
+        if hdf5_file:
+            eazy.hdf5.write_hdf5(self.photoz, f'{self.eazy_out_folder_path}/photoz.h5')
+
+    
+    @classmethod
+    def init_from_hdf5(cls, folder_name:str, selection_name:str, data_path:str='.data') -> None:
+        run = cls(folder_name, selection_name, data_path)
+        run.photoz = eazy.hdf5.initialize_from_hdf5(f'{run.eazy_out_folder_path}/photoz.h5')
+
 
 
 def main() -> None:
