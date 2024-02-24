@@ -1,4 +1,0 @@
-where to take error floor from
-Should it be SED specific (restructure) or some flat value for all
-And is that flat value also the same across every combination set
-    eg it could be based of the max filter in the combo?
