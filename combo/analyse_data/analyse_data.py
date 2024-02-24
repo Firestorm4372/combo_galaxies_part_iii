@@ -162,7 +162,7 @@ class Analyse(ProcessData):
         
         Used before plotting so `combine` does not have to be called.  
         """
-        if len(self.all_galaxies) == 0:
+        if (not hasattr(self, 'combo_galaxies')) or (len(self.combo_galaxies) == 0):
             self.combine()
 
 
@@ -310,7 +310,9 @@ class Analyse(ProcessData):
         axs[0].set_ylabel(r'RMS of $\Delta z / (1 + z_\mathrm{red})$')
         fig.supxlabel('Combinations')
 
-        fig.legend(*axs[0].get_legend_handles_labels())
+        # show legend only if more than one line
+        if np.all([(len(ax.lines) > 1) for ax in axs]):
+            fig.legend(*axs[0].get_legend_handles_labels())
 
         return fig
 
