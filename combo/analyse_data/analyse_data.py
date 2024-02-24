@@ -314,6 +314,8 @@ class Analyse(ProcessData):
         if np.all([(len(ax.lines) > 1) for ax in axs]):
             fig.legend(*axs[0].get_legend_handles_labels())
 
+        fig.suptitle('RMS in redshift errors')
+
         return fig
 
     def stdev_error_combo(self, z_split:list[float]=[], plot_no_catastrophic:bool=True) -> plt.Figure:
@@ -383,6 +385,8 @@ class Analyse(ProcessData):
         fig.supxlabel('Combinations')
 
         fig.legend(*axs[0].get_legend_handles_labels())
+
+        fig.suptitle('Standard deviation in redshift errors')
 
         return fig
     
