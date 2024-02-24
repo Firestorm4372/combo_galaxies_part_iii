@@ -103,6 +103,8 @@ class ProcessData():
         self.chi2_combo.append(chi2_combo)
 
     def _create_dataframe(self) -> None:
+        """Creates `combo_galaxies` dataframe"""
+
         self.combo_galaxies = pd.DataFrame({
             'z_red': self.z_red,
             'combo': self.combo,
@@ -154,6 +156,15 @@ class Analyse(ProcessData):
         super().__init__(folder_name, selection_name, data_path)
         self.catastrophic = catastrophic
 
+    
+    def _check_combined(self) -> None:
+        """Makes sure the galaxies have been combined, and will combine if not.
+        
+        Used before plotting so `combine` does not have to be called.  
+        """
+        if len(self.all_galaxies) == 0:
+            self.combine()
+
 
     def zred_zphot(self, combinations:list[int]=None, errors_lim:list[float]=None) -> list[plt.Figure]:
         """
@@ -174,6 +185,8 @@ class Analyse(ProcessData):
         figs : list[Figure]
             Figure for each combination value
         """
+
+        self._check_combined()
 
         if combinations == None:
             combinations = self.combinations
@@ -254,6 +267,8 @@ class Analyse(ProcessData):
             Produced figure of mean in absolute of errors
         """
 
+        self._check_combined()
+
         # z_split masks
         z_bin = [np.min(self.z_vals), *z_split, np.max(self.z_vals)]
         bin_masks = []
@@ -322,6 +337,8 @@ class Analyse(ProcessData):
             Produced figure of mean in absolute of errors
         """
 
+        self._check_combined()
+
         # z_split masks
         z_bin = [np.min(self.z_vals), *z_split, np.max(self.z_vals)]
         bin_masks = []
@@ -387,6 +404,8 @@ class Analyse(ProcessData):
         figs : list[Figure]
             Returns in list even if only one figure produced 
         """
+
+        self._check_combined()
 
         # combinations list is either all or the selection
         if combinations == None:
