@@ -470,6 +470,50 @@ class SedPlot(Analyse):
         else:
             self.photoz = eazy.hdf5.initialize_from_hdf5(f'{self.eazy_photoz_path}.h5')
 
+    def combo_SEDs(self, idx:int, idx_is_id:bool=False, combined_only:bool=False, **kwargs) -> tuple[list[plt.Figure], int]:
+        """
+        Display figures of all SEDs in a combo, or just the combined if `combined_only = True`.
+
+        Parameters
+        ----------
+        idx : int
+            Number of the combination galaxy to display. Count from 0. 
+        idx_is_id : bool, default False
+            If True, searches for combo galaxy with id of `idx`.
+        combined_only : bool, default False
+            If True, will only display the combo SED.
+        
+        Any other kwargs are passed to `photoz.show_fit`
+
+        Returns
+        -------
+        figs : list[Figure]
+            The SED plots produced by `photoz.show_fit` for first the combo and then individual galaxies
+        combo : int
+            Combination number
+        """
+        
+        if not idx_is_id:
+            # count from first id of the combo galaxies
+            combo_id = idx + self.all_galaxies['id'][0]
+        else:
+            combo_id = idx
+
+        # get table idx of the combo galaxy
+        table_idx = np.asarray(self.all_galaxies['id'] == combo_id).nonzero()[0][0] # this works
+
+        combo = self.all_galaxies[table_idx]['combo']
+
+        if not combined_only:
+            # then take sub selection, and get ids from
+            ids = self.all_galaxies['id'][table_idx:table_idx+combo+1]
+        else:
+            ids = [combo_id]
+
+        # return figs objects only (first return of show_fit)
+        return [self.photoz.show_fit(id, **kwargs)[0] for id in ids], combo
+
+
 
 def main() -> None:
     ana = Analyse('1_more_variation', '0_full_range')
