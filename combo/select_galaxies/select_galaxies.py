@@ -180,14 +180,6 @@ class Select():
             self.filters:list[str] = [r for r in read][0]
         self.filter_errors = [f'E{filt[1:]}' for filt in self.filters]
 
-        self.last_id:int = self.catalog[-1]['id']
-
-    def next_id(self) -> int:
-        """Returns the next id to be used, and iterates previous by one
-        (up to what has just been returned).
-        """
-        self.last_id += 1
-        return self.last_id
 
     def _select_galaxies(self, z:float, number:int) -> Table:
         """Select `number` galaxies at redshfit `z`"""
@@ -229,21 +221,36 @@ class Select():
 
         list_galaxies:list[Table] = []
 
+        last_id = self.catalog['id'][-1]
+        # get number that can be added to all ids without interfering
+        # will add 0 times for first frac error, then 1 times etc
+        # then for combo values do the next of that
+        # ids in catalog start from 1, so if last id is eg 100, can use 101 as the next
+        extra_digit_number = int(10**np.ceil(np.log10(last_id)))
+        self.combo_extra_digit = extra_digit_number * len(combo_fractional_errors) # minus one so next_combo_id first returns the n0000 id
+
+        def next_combo_id() -> int:
+            self.combo_extra_digit += 1
+            return self.combo_extra_digit
+
         for z in z_vals:
             for combo in combinations:
                 # get relevant number of the single galaxies at given z
                 single_galaxies = self._select_galaxies(z, combo)
                 # combine at each fractional error
-                for frac_err in combo_fractional_errors:
+                for i, frac_err in enumerate(combo_fractional_errors):
                     # copy galaxies table for each fractional error
                     frac_err_single_galaxies = single_galaxies.copy()
                     frac_err_single_galaxies.add_column(frac_err, 3, 'combo_frac_err')
+                    # add relevant extra digit to ids
+                    for j, id in enumerate(frac_err_single_galaxies['id']):
+                        frac_err_single_galaxies['id'][j] += i * extra_digit_number
 
                     # combine and add errors
-                    combiner = Combine(frac_err_single_galaxies, self.next_id(), self.filters, self.filter_errors,
+                    combiner = Combine(frac_err_single_galaxies, next_combo_id(), self.filters, self.filter_errors,
                                         frac_err, **kwargs)
                     galaxies = combiner.full_combine()
-                    
+
                     list_galaxies.append(galaxies)
 
         # create one large table
