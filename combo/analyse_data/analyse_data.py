@@ -27,7 +27,7 @@ class ProcessData():
         with open(f'{self.selection_folder_path}/properties.csv') as f:
             lines = [row for row in csv.reader(f)]
             self.selection_description = lines[0][1]
-            self.frac_error = float(lines[1][1])
+            self.frac_errors = [float(f) for f in lines[1][1:]]
             self.z_vals = [float(z) for z in lines[2][1:]]
             self.combinations = [int(c) for c in lines[3][1:]]
             self.filters = lines[4][1:]
@@ -108,6 +108,7 @@ class ProcessData():
         self.combo_galaxies = pd.DataFrame({
             'z_red': self.z_red,
             'combo': self.combo,
+            'combo_frac_err': self.combo_frac_err,
             'z_int': self.z_int,
             'z_mean': self.z_mean,
             'z_chi2': self.z_chi2,
@@ -124,6 +125,7 @@ class ProcessData():
         # reset, will then be filled
         self.z_red = []
         self.combo = []
+        self.combo_frac_err = []
         self.z_int = []
         self.z_mean = []
         self.z_chi2 = []
@@ -138,6 +140,7 @@ class ProcessData():
                 # append zred and combo
                 self.z_red.append(galaxy['zred'])
                 self.combo.append(galaxy['combo'])
+                self.combo_frac_err.append(galaxy['combo_frac_err'])
                 self._data_single_combination(indiv_range)
 
         self._create_dataframe()
@@ -166,85 +169,7 @@ class Analyse(ProcessData):
             self.combine()
 
 
-    def zred_zphot(self, combinations:list[int]=None, errors_lim:list[float]=None) -> list[plt.Figure]:
-        """
-        Produce figures showing plots of z_red compared to various z_phot methods.
-        These are integrate before EAZY, mean of EAZY z_best, and min of combined chi squared.
-
-        Parameters
-        ----------
-        combinations : list[int], default None
-            If argument supplied, will only show and return those figures.
-            If `None` all combinations are shown.
-        errors_lim : list[float], default None
-            y limits for the errors plots.
-            If `None` will be plus minus `2 * self.catastrophic`
-
-        Returns
-        -------
-        figs : list[Figure]
-            Figure for each combination value
-        """
-
-        self._check_combined()
-
-        if combinations == None:
-            combinations = self.combinations
-
-        if errors_lim == None:
-            errors_lim = [-2*self.catastrophic, 2*self.catastrophic]
-
-        figs = []
-
-        for combo in self.combinations:
-            combo_mask = (self.combo_galaxies['combo'] == combo)
-            sub = self.combo_galaxies[combo_mask]
-
-            fig, axs = plt.subplots(2, 3, sharex=True, sharey='row', height_ratios=[4,1])
-
-            # then for each of the different z_phot methods
-            for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
-                frac_error = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
-
-                # mask for catastrophic outliers
-                mask_bad = (np.abs(frac_error) > self.catastrophic)
-                mask_good = (np.abs(frac_error) <= self.catastrophic)
-
-                # fractional errors plot
-                axs[1,i].axhline(0, color='black', linewidth=0.6)
-                axs[1,i].plot(sub['z_red'][mask_good], frac_error[mask_good], 'c.')
-                axs[1,i].plot(sub['z_red'][mask_bad], frac_error[mask_bad], 'r.')
-                axs[1,i].set_ylim([-0.2, 0.2])
-
-                # linear plot
-                axs[0,i].plot(sub['z_red'], sub['z_red'], 'k')
-                axs[0,i].plot(sub['z_red'][mask_good], sub[z_phot][mask_good], 'c.')
-                axs[0,i].plot(sub['z_red'][mask_bad], sub[z_phot][mask_bad], 'r.')
-                axs[0,i].set_xticks(axs[0,i].get_yticks())
-                axs[0,i].set_xlim(axs[0,i].get_ylim())
-                axs[0,i].set_title(z_phot)
-
-                axs[1,i].set_xlabel(r'$z_{\mathrm{true}}$')
-
-                axs[0,i].tick_params(bottom=False)
-                if i != 0:
-                    axs[0,i].tick_params(left=False)
-                    axs[1,i].tick_params(left=False)
-
-            axs[0,0].set_ylabel(r'$z_{\mathrm{phot}}$')
-            axs[1,0].set_ylabel(r'$\Delta z / (1 + z_{\mathrm{true}})$')
-
-            fig.subplots_adjust(wspace=0, hspace=0)
-            fig.set_figheight(0.8 * fig.get_figheight())
-            fig.set_figwidth(12/5 * fig.get_figheight())
-            fig.suptitle(f'combo = {combo}')
-
-            figs.append(fig)
-            
-        return figs
-    
-
-    def rms_error_combo(self, z_split:list[float]=[], plot_no_catastrophic:bool=True) -> plt.Figure:
+    def rms_error_combo(self, z_split:list[float]=[], plot_no_catastrophic:bool=False) -> plt.Figure:
         """
         Plot of root mean square errors as compared to combo values.
         Can bin sections of the redshift range.
@@ -258,8 +183,8 @@ class Analyse(ProcessData):
             Values in the list are intermediate bin values, between the min and max of the redshift range.
             Hence `[5]` will bin from [min, 5] and (5,max].
             And `[5,8]` will bin [min, 5] (5, 8] (8, max].
-        plot_no_catastrophic : bool, default True
-            If default of True, will plot means without catastrophic errors in each case also.
+        plot_no_catastrophic : bool, default False
+            If True, will plot means without catastrophic errors in each case also.
 
         Returns
         -------
@@ -281,25 +206,35 @@ class Analyse(ProcessData):
         # create figure
         fig, axs = plt.subplots(1, 3, sharey=True, sharex=True)
 
-        # plot for each z_bin
+        # plot for each method, fractional error, and z_bin
         for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
-            for j, bin_mask in enumerate(bin_masks):
-                means_all = []
-                means_no_cat = []
+            for frac_err in self.frac_errors:
+                frac_err_mask = (self.combo_galaxies['combo_frac_err'] == frac_err)
 
-                for combo in self.combinations:
-                    combo_mask = (self.combo_galaxies['combo'] == combo)
-                    sub = self.combo_galaxies[combo_mask][bin_mask]
+                for k, bin_mask in enumerate(bin_masks):
+                    means_all = []
+                    means_no_cat = []
 
-                    all_frac_errors = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
-                    no_catastrophic_mask = (all_frac_errors <= self.catastrophic)
+                    for combo in self.combinations:
+                        combo_mask = (self.combo_galaxies['combo'] == combo)
+                        err_and_combo_mask = np.logical_and(frac_err_mask, combo_mask)
+                        sub = self.combo_galaxies[err_and_combo_mask][bin_mask]
+
+                        all_frac_errors = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
+                        no_catastrophic_mask = (all_frac_errors <= self.catastrophic)
+                        
+                        means_all.append(np.sqrt(np.mean(all_frac_errors**2)))
+                        means_no_cat.append(np.sqrt(np.mean(all_frac_errors[no_catastrophic_mask])))
                     
-                    means_all.append(np.sqrt(np.mean(all_frac_errors**2)))
-                    means_no_cat.append(np.sqrt(np.mean(all_frac_errors[no_catastrophic_mask])))
-                
-                axs[i].plot(self.combinations, means_all, label=f'All {z_bin[j]} {z_bin[j+1]}')
-                if plot_no_catastrophic:
-                    axs[i].plot(self.combinations, means_no_cat, label=f'No cat {z_bin[j]} {z_bin[j+1]}')
+                    # simplify label if only fractional error
+                    if (len(z_split)==0) and (not plot_no_catastrophic):
+                        label = frac_err
+                    else:
+                        label = f'{frac_err} All {z_bin[k]} {z_bin[k+1]}'
+
+                    axs[i].plot(self.combinations, means_all, label=label)
+                    if plot_no_catastrophic:
+                        axs[i].plot(self.combinations, means_no_cat, label=f'{frac_err} No cat {z_bin[k]} {z_bin[k+1]}')
             
             axs[i].set_xlim(0)
             axs[i].set_title(z_phot)
@@ -318,7 +253,7 @@ class Analyse(ProcessData):
 
         return fig
 
-    def stdev_error_combo(self, z_split:list[float]=[], plot_no_catastrophic:bool=True) -> plt.Figure:
+    def stdev_error_combo(self, z_split:list[float]=[], plot_no_catastrophic:bool=False) -> plt.Figure:
         """
         Plot of standard deviations of errors as compared to combo values.
         Can bin sections of the redshift range.
@@ -332,8 +267,8 @@ class Analyse(ProcessData):
             Values in the list are intermediate bin values, between the min and max of the redshift range.
             Hence `[5]` will bin from [min, 5] and (5,max].
             And `[5,8]` will bin [min, 5] (5, 8] (8, max].
-        plot_no_catastrophic : bool, default True
-            If default of True, will plot standard deviations without catastrophic errors in each case also.
+        plot_no_catastrophic : bool, default False
+            If True, will plot standard deviations without catastrophic errors in each case also.
 
         Returns
         -------
@@ -355,26 +290,36 @@ class Analyse(ProcessData):
         # create figure
         fig, axs = plt.subplots(1, 3, sharey=True, sharex=True)
 
-        # plot for each z_bin
+        # plot for each method, fractional error, and z_bin
         for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
-            for j, bin_mask in enumerate(bin_masks):
-                stdevs_all = []
-                stdevs_no_cat = []
+            for frac_err in self.frac_errors:
+                frac_err_mask = (self.combo_galaxies['combo_frac_err'] == frac_err)
 
-                for combo in self.combinations:
-                    combo_mask = (self.combo_galaxies['combo'] == combo)
-                    sub = self.combo_galaxies[combo_mask][bin_mask]
+                for k, bin_mask in enumerate(bin_masks):
+                    stdevs_all = []
+                    stdevs_no_cat = []
 
-                    all_frac_errors = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
-                    no_catastrophic_mask = (all_frac_errors <= self.catastrophic)
+                    for combo in self.combinations:
+                        combo_mask = (self.combo_galaxies['combo'] == combo)
+                        err_and_combo_mask = np.logical_and(frac_err_mask, combo_mask)
+                        sub = self.combo_galaxies[err_and_combo_mask][bin_mask]
+
+                        all_frac_errors = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
+                        no_catastrophic_mask = (all_frac_errors <= self.catastrophic)
+                        
+                        stdevs_all.append(np.std(all_frac_errors))
+                        stdevs_no_cat.append(np.std(all_frac_errors[no_catastrophic_mask]))
                     
-                    stdevs_all.append(np.std(all_frac_errors))
-                    stdevs_no_cat.append(np.std(all_frac_errors[no_catastrophic_mask]))
+                    # simplify label if only fractional error
+                    if (len(z_split)==0) and (not plot_no_catastrophic):
+                        label = frac_err
+                    else:
+                        label = f'{frac_err} All {z_bin[k]} {z_bin[k+1]}'
+
+                    axs[i].plot(self.combinations, stdevs_all, label=label)
+                    if plot_no_catastrophic:
+                        axs[i].plot(self.combinations, stdevs_no_cat, label=f'No cat {z_bin[k]} {z_bin[k+1]}')
                 
-                axs[i].plot(self.combinations, stdevs_all, label=f'All {z_bin[j]} {z_bin[j+1]}')
-                if plot_no_catastrophic:
-                    axs[i].plot(self.combinations, stdevs_no_cat, label=f'No cat {z_bin[j]} {z_bin[j+1]}')
-            
             axs[i].set_xlim(0)
             axs[i].set_title(z_phot)
             if i != 0:
@@ -390,7 +335,7 @@ class Analyse(ProcessData):
 
         return fig
     
-    def hist_errors_combo(self, combinations:list[int]=None, bins:int|list|str=10, show_zero_line:bool=True) -> list[plt.Figure]:
+    def hist_errors_combo(self, combinations:list[int]=None, fractional_errors:list[int]=None, bins:int|list|str=10, show_zero_line:bool=True) -> list[plt.Figure]:
         """
         Histogram of errors in redshift using the different methods.
         Currently produces horizontal figure.
@@ -400,6 +345,9 @@ class Analyse(ProcessData):
         combinations : list[int], default None
             If argument supplied, will only show and return those figures.
             If `None` all combinations are shown.
+        fractional_errors : list[int], default None
+            If argument supplied, will only show and return those figures.
+            If `None` all fractional errors are shown.
         bins : int | list | str, default 10
             Argument passed to `plt.hist` as bins (see `hist` docs)
         show_zero_line : bool, default True
@@ -417,39 +365,131 @@ class Analyse(ProcessData):
         if combinations == None:
             combinations = self.combinations
         
+        if fractional_errors == None:
+            fractional_errors = self.frac_errors
+
         figs = []
 
-        for combo in combinations:
-            combo_mask = (self.combo_galaxies['combo'] == combo)
-            sub = self.combo_galaxies[combo_mask]
+        for frac_err in fractional_errors:
+            frac_err_mask = (self.combo_galaxies['combo_frac_err'] == frac_err)
+            for combo in combinations:
+                combo_mask = (self.combo_galaxies['combo'] == combo)
+                mask = np.logical_and(frac_err_mask, combo_mask)
+                sub = self.combo_galaxies[mask]
 
-            # create figure
-            fig, axs = plt.subplots(1, 3, sharex=True, sharey=True)
+                # create figure
+                fig, axs = plt.subplots(1, 3, sharex=True, sharey=True)
 
-            for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
-                frac_error = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
+                for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
+                    frac_error = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
 
-                # make histogram
-                axs[i].hist(frac_error, bins, orientation='horizontal')
+                    # make histogram
+                    axs[i].hist(frac_error, bins, orientation='horizontal')
 
-                if show_zero_line:
-                    axs[i].axhline(0, color='black')
+                    if show_zero_line:
+                        axs[i].axhline(0, color='black')
 
-                if i != 0:
-                    axs[i].tick_params(left=False)
+                    if i != 0:
+                        axs[i].tick_params(left=False)
 
-                axs[i].set_title(z_phot)
-            
-            fig.supylabel(r'$\Delta z / (1 + z_\mathrm{red})$')
-            fig.supxlabel('Density')
+                    axs[i].set_title(z_phot)
+                
+                fig.supylabel(r'$\Delta z / (1 + z_\mathrm{red})$')
+                fig.supxlabel('Density')
 
-            fig.subplots_adjust(wspace=0)
-            fig.suptitle(f'combo = {combo}')
-            
-            figs.append(fig)
+                fig.subplots_adjust(wspace=0)
+                fig.suptitle(f'frac_err = {frac_err}, combo = {combo}')
+                
+                figs.append(fig)
 
         return figs
 
+    def zred_zphot(self, combinations:list[int]=None, fractional_errors:list[int]=None, errors_lim:list[float]=None) -> list[plt.Figure]:
+        """
+        Produce figures showing plots of z_red compared to various z_phot methods.
+        These are integrate before EAZY, mean of EAZY z_best, and min of combined chi squared.
+
+        Parameters
+        ----------
+        combinations : list[int], default None
+            If argument supplied, will only show and return those figures.
+            If `None` all combinations are shown.
+        fractional_errors : list[int], default None
+            If argument supplied, will only show and return those figures.
+            If `None` all fractional_errors are shown.
+        errors_lim : list[float], default None
+            y limits for the errors plots.
+            If `None` will be plus minus `2 * self.catastrophic`
+
+        Returns
+        -------
+        figs : list[Figure]
+            Figure for each combination value
+        """
+
+        self._check_combined()
+
+        if combinations == None:
+            combinations = self.combinations
+
+        if fractional_errors == None:
+            fractional_errors = self.frac_errors
+
+        if errors_lim == None:
+            errors_lim = [-2*self.catastrophic, 2*self.catastrophic]
+
+        figs = []
+        
+        for frac_err in fractional_errors:
+            frac_err_mask = (self.combo_galaxies['combo_frac_err'] == frac_err)
+            for combo in combinations:
+                combo_mask = (self.combo_galaxies['combo'] == combo)
+                mask = np.logical_and(frac_err_mask, combo_mask)
+                sub = self.combo_galaxies[mask]
+
+                fig, axs = plt.subplots(2, 3, sharex=True, sharey='row', height_ratios=[4,1])
+
+                # then for each of the different z_phot methods
+                for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
+                    frac_error = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
+
+                    # mask for catastrophic outliers
+                    mask_bad = (np.abs(frac_error) > self.catastrophic)
+                    mask_good = (np.abs(frac_error) <= self.catastrophic)
+
+                    # fractional errors plot
+                    axs[1,i].axhline(0, color='black', linewidth=0.6)
+                    axs[1,i].plot(sub['z_red'][mask_good], frac_error[mask_good], 'c.')
+                    axs[1,i].plot(sub['z_red'][mask_bad], frac_error[mask_bad], 'r.')
+                    axs[1,i].set_ylim([-0.2, 0.2])
+
+                    # linear plot
+                    axs[0,i].plot(sub['z_red'], sub['z_red'], 'k')
+                    axs[0,i].plot(sub['z_red'][mask_good], sub[z_phot][mask_good], 'c.')
+                    axs[0,i].plot(sub['z_red'][mask_bad], sub[z_phot][mask_bad], 'r.')
+                    axs[0,i].set_xticks(axs[0,i].get_yticks())
+                    axs[0,i].set_xlim(axs[0,i].get_ylim())
+                    axs[0,i].set_title(z_phot)
+
+                    axs[1,i].set_xlabel(r'$z_{\mathrm{true}}$')
+
+                    axs[0,i].tick_params(bottom=False)
+                    if i != 0:
+                        axs[0,i].tick_params(left=False)
+                        axs[1,i].tick_params(left=False)
+
+                axs[0,0].set_ylabel(r'$z_{\mathrm{phot}}$')
+                axs[1,0].set_ylabel(r'$\Delta z / (1 + z_{\mathrm{true}})$')
+
+                fig.subplots_adjust(wspace=0, hspace=0)
+                fig.set_figheight(0.8 * fig.get_figheight())
+                fig.set_figwidth(12/5 * fig.get_figheight())
+                fig.suptitle(f'frac_err = {frac_err}, combo = {combo}')
+
+                figs.append(fig)
+            
+        return figs
+    
 
 class SedPlot(Analyse):
     """
@@ -516,9 +556,10 @@ class SedPlot(Analyse):
 
 
 def main() -> None:
-    ana = Analyse('1_more_variation', '0_full_range')
-    ana.combine()
-    ana.zout()
+    ana = Analyse('1_more_variation', '1_name')
+    ana.rms_error_combo(plot_no_catastrophic=False)
+    ana.stdev_error_combo()
+    plt.show()
 
 if __name__ == '__main__':
     main()
