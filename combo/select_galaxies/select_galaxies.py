@@ -8,7 +8,8 @@ from astropy.table import Table
 
 class Combine():
     """
-    Given set of single galaxies, will produce the combination filter values, and errors in all filters
+    Given set of single galaxies, will produce the combination filter values, and errors in all filters.
+    Modifies `single_galaxies` in place. 
 
     Attributes
     ----------
@@ -18,7 +19,7 @@ class Combine():
         The id value to assign to the combination galaxy
     filters, error_filters : list[str]
         Names of the columns of the filters, and the names of the error columns
-    combo_fractional_error : float, default 0.1
+    combo_fractional_error : float
         Fractional error that is attempted to be achieved in the combination filter. 
         Excluding the effects of error floors etc.
 
@@ -35,20 +36,20 @@ class Combine():
         Calculate the combination errors as quadrature of the individuals.
         NOT IMPLEMENTED NON QUADRATURE (IE WITH AN ERROR FLOOR)
 
-    frac_error_floor : float, default 0.05
+    frac_error_floor : float, default 0.01
         Fractional amount of `magnitude_filter` flux that will be used as the error floor.    
     const_error_floor : float, default 0
         Value to use if using a constant error floor
     """
 
     def __init__(self,
-                 single_galaxies:Table, combo_id:int, filters:list[str], error_filters:list[str], combo_fractional_error:float=0.1,
+                 single_galaxies:Table, combo_id:int, filters:list[str], error_filters:list[str], combo_fractional_error:float,
                  magnitude_filter:str='F277W',
                  is_flux_normalisation:bool=False, is_constant_error:bool=False, is_combo_in_quadrature:bool=True,
                  frac_error_floor:float=0.01, const_error_floor:float=0
         ) -> None:
 
-        self.galaxies = single_galaxies.copy() # create copy to later fill with new values
+        self.galaxies = single_galaxies
         self.filters = filters
         self.error_filters = error_filters
         self.combo_fractional_error = combo_fractional_error
@@ -134,7 +135,8 @@ class Combine():
         combo_galaxy = {
             'id': self.combo_id,
             'zred': self.zred,
-            'combo': self.combo
+            'combo': self.combo,
+            'combo_frac_err': self.combo_fractional_error
         } | self.combo_flux_values | self.combo_flux_errors
 
         self.galaxies.insert_row(0, combo_galaxy)
@@ -148,6 +150,10 @@ class Combine():
 
 
 class Select():
+    """
+    Manages creation of selections from a catalog specified. 
+    """
+
     def __init__(self, folder_name:str, data_path:str='.data', filter_list:str='filter_list.csv') -> None:
         # directory names
         self.folder_name = folder_name
@@ -178,7 +184,8 @@ class Select():
 
     def next_id(self) -> int:
         """Returns the next id to be used, and iterates previous by one
-        (up to what has just been returned)."""
+        (up to what has just been returned).
+        """
         self.last_id += 1
         return self.last_id
 
@@ -190,7 +197,7 @@ class Select():
         return Table(rng.choice(sub, number, replace=False))
 
 
-    def create_galaxies_table(self, z_vals:list[float], combinations:list[int], frac_error:float=0.1) -> Table:
+    def create_galaxies_table(self, z_vals:list[float], combinations:list[int], combo_fractional_errors:list[float]=[0.1], **kwargs) -> Table:
         """
         Select at each `z_val`, some random galaxies for each `combination`.
         Then apply relevant errors and create relevant flux combinations.
@@ -202,9 +209,12 @@ class Select():
             List of z values to create the combos at
         combos : list[int]
             List of size of each combination (e.g. `[2,5]` will give combinations of 2 and of 5 galaxy filter fluxes)
-        frac_error : float, default 0.1
+        combo_fractional_errors : list[float], default [0.1]
             Size of fractional error in the combination galaxies.
             From this, errors in the galaxies that make up the combo can be found.
+            Multiple values can be input as a list.
+
+        kwargs are passed to the `Combine` object after `combo_fractional_error`. 
 
         Returns
         -------
@@ -215,17 +225,26 @@ class Select():
 
         self.z_vals = z_vals
         self.combinations = combinations
-        self.frac_error = frac_error
+        self.combo_fractional_errors = combo_fractional_errors
 
         list_galaxies:list[Table] = []
 
         for z in z_vals:
             for combo in combinations:
-                # extra relevant number of the single galaxies
+                # get relevant number of the single galaxies at given z
                 single_galaxies = self._select_galaxies(z, combo)
-                combiner = Combine(single_galaxies, self.next_id(), self.filters, self.filter_errors)
-                galaxies = combiner.full_combine()
-                list_galaxies.append(galaxies)
+                # combine at each fractional error
+                for frac_err in combo_fractional_errors:
+                    # copy galaxies table for each fractional error
+                    frac_err_single_galaxies = single_galaxies.copy()
+                    frac_err_single_galaxies.add_column(frac_err, 3, 'combo_frac_err')
+
+                    # combine and add errors
+                    combiner = Combine(frac_err_single_galaxies, self.next_id(), self.filters, self.filter_errors,
+                                        frac_err, **kwargs)
+                    galaxies = combiner.full_combine()
+                    
+                    list_galaxies.append(galaxies)
 
         # create one large table
         d = dict()
@@ -268,7 +287,7 @@ class Select():
 
             rows = [
                 ['description', self.selection_description],
-                ['frac_error', self.frac_error],
+                ['frac_errors', *self.combo_fractional_errors],
                 ['z_vals', *self.z_vals],
                 ['combinations', *self.combinations],
                 ['filters', *self.filters]
@@ -283,7 +302,7 @@ class Select():
             self.all_galaxies[col_name][:] *= 1e-3
 
     def _EAZY_file_rows(self) -> list[list]:
-        column_names = ['id', 'zred', 'combo', *self.filters, *self.filter_errors]
+        column_names = ['id', 'zred', 'combo', 'combo_frac_err', *self.filters, *self.filter_errors]
         EAZY_rows = [column_names]
 
         self._convert_nano_to_micro_Jy()
@@ -299,8 +318,8 @@ class Select():
             csv_write.writerows(EAZY_rows)
 
     
-    def create_and_save_galaxies(self, z_vals:list[float], combinations:list[int], frac_error:float=0.1,
-                                 name:str='name', description:str='description') -> Table:
+    def create_and_save_galaxies(self, z_vals:list[float], combinations:list[int], combo_fractional_errors:list[float]=[0.1],
+                                 name:str='name', description:str='description', **kwargs) -> Table:
         """
         Select at each `z_val`, some random galaxies for each `combination`.
         Then apply relevant errors and create relevant flux combinations.
@@ -313,13 +332,16 @@ class Select():
             List of z values to create the combos at
         combos : list[int]
             List of size of each combination (e.g. `[2,5]` will give combinations of 2 and of 5 galaxy filter fluxes)
-        frac_error : float, default 0.1
+        combo_fractional_errors : list[float], default [0.1]
             Size of fractional error in the combination galaxies.
             From this, errors in the galaxies that make up the combo can be found.
+            Multiple values can be input as a list.
         name : str, Default 'name'
             Name to save under
         description : str, Default 'description'
             Description of selection
+
+        kwargs are passed to the `Combine` object after `combo_fractional_error`. 
 
         Returns
         -------
@@ -328,7 +350,7 @@ class Select():
             Also stored in attribute `self.all_galaxies`.
         """
 
-        self.create_galaxies_table(z_vals, combinations, frac_error)
+        self.create_galaxies_table(z_vals, combinations, combo_fractional_errors, **kwargs)
         self.save_galaxies_table(name, description)
         self.save_EAZY_file()
         return self.all_galaxies
@@ -337,11 +359,7 @@ class Select():
 
 def main() -> None:
     sel = Select('1_more_variation')
-    z_vals = np.arange(20, 140, dtype=int) / 10
-    z_vals = np.repeat(z_vals, 1)
-    combinations = [2,3]
-    sel.create_galaxies_table(z_vals, combinations, 0.1)
-    print(sel.all_galaxies)
+    sel.create_galaxies_table([2,3], [2,3], [0.1,1])
 
 if __name__ == '__main__':
     main()
