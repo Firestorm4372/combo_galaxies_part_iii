@@ -169,13 +169,16 @@ class Analyse(ProcessData):
             self.combine()
 
 
-    def rms_error_combo(self, z_split:list[float]=[], plot_no_catastrophic:bool=False) -> plt.Figure:
+    def rms_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False) -> plt.Figure:
         """
         Plot of root mean square errors as compared to combo values.
         Can bin sections of the redshift range.
 
         Parameters
         ----------
+        fractional_errors : list[float], default None
+            Values of fractional error to plot.
+            Default `None` plots all.
         z_split : list[float], default empty list
             Bins to separate the redshift range into.
             Default empty list has no binning (single line).
@@ -194,6 +197,9 @@ class Analyse(ProcessData):
 
         self._check_combined()
 
+        if fractional_errors == None:
+            fractional_errors = self.frac_errors
+
         # z_split masks
         z_bin = [np.min(self.z_vals), *z_split, np.max(self.z_vals)]
         bin_masks = []
@@ -208,7 +214,7 @@ class Analyse(ProcessData):
 
         # plot for each method, fractional error, and z_bin
         for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
-            for frac_err in self.frac_errors:
+            for frac_err in fractional_errors:
                 frac_err_mask = (self.combo_galaxies['combo_frac_err'] == frac_err)
 
                 for k, bin_mask in enumerate(bin_masks):
@@ -253,13 +259,16 @@ class Analyse(ProcessData):
 
         return fig
 
-    def stdev_error_combo(self, z_split:list[float]=[], plot_no_catastrophic:bool=False) -> plt.Figure:
+    def stdev_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False) -> plt.Figure:
         """
         Plot of standard deviations of errors as compared to combo values.
         Can bin sections of the redshift range.
 
         Parameters
         ----------
+        fractional_errors : list[float], default None
+            Values of fractional error to plot.
+            Default `None` plots all.
         z_split : list[float], default empty list
             Bins to separate the redshift range into.
             Default empty list has no binning (single line).
@@ -278,6 +287,9 @@ class Analyse(ProcessData):
 
         self._check_combined()
 
+        if fractional_errors == None:
+            fractional_errors = self.frac_errors
+
         # z_split masks
         z_bin = [np.min(self.z_vals), *z_split, np.max(self.z_vals)]
         bin_masks = []
@@ -292,7 +304,7 @@ class Analyse(ProcessData):
 
         # plot for each method, fractional error, and z_bin
         for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
-            for frac_err in self.frac_errors:
+            for frac_err in fractional_errors:
                 frac_err_mask = (self.combo_galaxies['combo_frac_err'] == frac_err)
 
                 for k, bin_mask in enumerate(bin_masks):
