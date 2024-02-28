@@ -169,7 +169,7 @@ class Analyse(ProcessData):
             self.combine()
 
 
-    def rms_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False) -> plt.Figure:
+    def rms_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False, zero_y_lim:bool=False) -> plt.Figure:
         """
         Plot of root mean square errors as compared to combo values.
         Can bin sections of the redshift range.
@@ -188,6 +188,8 @@ class Analyse(ProcessData):
             And `[5,8]` will bin [min, 5] (5, 8] (8, max].
         plot_no_catastrophic : bool, default False
             If True, will plot means without catastrophic errors in each case also.
+        zero_y_lim : bool, default False
+            If True, will set lower y limit to be zero. 
 
         Returns
         -------
@@ -246,6 +248,9 @@ class Analyse(ProcessData):
             axs[i].set_title(z_phot)
             axs[i].tick_params(direction='in', right=True)
         
+        if zero_y_lim:
+            axs[0].set_ylim(bottom=0)
+
         fig.subplots_adjust(wspace=0)
         axs[0].set_xticklabels([''] + axs[i].get_xticklabels()[1:])
         axs[0].set_ylabel(r'RMS of $\Delta z / (1 + z_\mathrm{red})$')
@@ -259,7 +264,7 @@ class Analyse(ProcessData):
 
         return fig
 
-    def stdev_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False) -> plt.Figure:
+    def stdev_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False, zero_y_lim:bool=False) -> plt.Figure:
         """
         Plot of standard deviations of errors as compared to combo values.
         Can bin sections of the redshift range.
@@ -278,6 +283,8 @@ class Analyse(ProcessData):
             And `[5,8]` will bin [min, 5] (5, 8] (8, max].
         plot_no_catastrophic : bool, default False
             If True, will plot standard deviations without catastrophic errors in each case also.
+        zero_y_lim : bool, default False
+            If True, will set lower y limit to be zero. 
 
         Returns
         -------
@@ -336,6 +343,9 @@ class Analyse(ProcessData):
             axs[i].set_title(z_phot)
             axs[i].tick_params(direction='in', right=True)
         
+        if zero_y_lim:
+            axs[0].set_ylim(bottom=0)
+
         fig.subplots_adjust(wspace=0)
         axs[0].set_xticklabels([''] + axs[i].get_xticklabels()[1:])
         axs[0].set_ylabel(r'Std dev in $\Delta z / (1 + z_\mathrm{red})$')
@@ -569,8 +579,8 @@ class SedPlot(Analyse):
 
 def main() -> None:
     ana = Analyse('1_more_variation', '1_name')
-    ana.rms_error_combo()
-    ana.stdev_error_combo()
+    ana.rms_error_combo(zero_y_lim=False)
+    # ana.stdev_error_combo()
     plt.show()
 
 if __name__ == '__main__':
