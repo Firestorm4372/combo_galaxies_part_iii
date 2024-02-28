@@ -244,10 +244,10 @@ class Analyse(ProcessData):
             
             axs[i].set_xlim(0)
             axs[i].set_title(z_phot)
-            if i != 0:
-                axs[i].tick_params(left=False)
+            axs[i].tick_params(direction='in', right=True)
         
-        fig.subplots_adjust(wspace=0.05)
+        fig.subplots_adjust(wspace=0)
+        axs[0].set_xticklabels([''] + axs[i].get_xticklabels()[1:])
         axs[0].set_ylabel(r'RMS of $\Delta z / (1 + z_\mathrm{red})$')
         fig.supxlabel('Combinations')
 
@@ -334,10 +334,10 @@ class Analyse(ProcessData):
                 
             axs[i].set_xlim(0)
             axs[i].set_title(z_phot)
-            if i != 0:
-                axs[i].tick_params(left=False)
+            axs[i].tick_params(direction='in', right=True)
         
-        fig.subplots_adjust(wspace=0.05)
+        fig.subplots_adjust(wspace=0)
+        axs[0].set_xticklabels([''] + axs[i].get_xticklabels()[1:])
         axs[0].set_ylabel(r'Std dev in $\Delta z / (1 + z_\mathrm{red})$')
         fig.supxlabel('Combinations')
 
@@ -569,7 +569,7 @@ class SedPlot(Analyse):
 
 def main() -> None:
     ana = Analyse('1_more_variation', '1_name')
-    ana.rms_error_combo(plot_no_catastrophic=False)
+    ana.rms_error_combo()
     ana.stdev_error_combo()
     plt.show()
 
