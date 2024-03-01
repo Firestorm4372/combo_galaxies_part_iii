@@ -169,7 +169,7 @@ class Analyse(ProcessData):
             self.combine()
 
 
-    def rms_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False, zero_y_lim:bool=False) -> plt.Figure:
+    def rms_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False, zero_y_lim:bool=False, show_title:bool=False) -> plt.Figure:
         """
         Plot of root mean square errors as compared to combo values.
         Can bin sections of the redshift range.
@@ -189,7 +189,9 @@ class Analyse(ProcessData):
         plot_no_catastrophic : bool, default False
             If True, will plot means without catastrophic errors in each case also.
         zero_y_lim : bool, default False
-            If True, will set lower y limit to be zero. 
+            If True, will set lower y limit to be zero.
+        show_title : bool, default False
+            Controls if title is drawn on figure
 
         Returns
         -------
@@ -202,6 +204,12 @@ class Analyse(ProcessData):
         if fractional_errors == None:
             fractional_errors = self.frac_errors
 
+        self.sub_plot_titles = {
+            'z_int': 'Sum Before EAZY',
+            'z_mean': r'Mean of $\{z_\mathrm{best}\}$',
+            'z_chi2': r'Min of $\sum \chi^2$'
+        }
+
         # z_split masks
         z_bin = [np.min(self.z_vals), *z_split, np.max(self.z_vals)]
         bin_masks = []
@@ -213,6 +221,7 @@ class Analyse(ProcessData):
 
         # create figure
         fig, axs = plt.subplots(1, 3, sharey=True, sharex=True)
+        axs:list[plt.Axes]
 
         # plot for each method, fractional error, and z_bin
         for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
@@ -232,11 +241,11 @@ class Analyse(ProcessData):
                         no_catastrophic_mask = (all_frac_errors <= self.catastrophic)
                         
                         means_all.append(np.sqrt(np.mean(all_frac_errors**2)))
-                        means_no_cat.append(np.sqrt(np.mean(all_frac_errors[no_catastrophic_mask])))
+                        means_no_cat.append(np.sqrt(np.mean(all_frac_errors[no_catastrophic_mask]**2)))
                     
                     # simplify label if only fractional error
                     if (len(z_split)==0) and (not plot_no_catastrophic):
-                        label = frac_err
+                        label = r'$\Delta = $' + f'{frac_err}'
                     else:
                         label = f'{frac_err} All {z_bin[k]} {z_bin[k+1]}'
 
@@ -245,26 +254,30 @@ class Analyse(ProcessData):
                         axs[i].plot(self.combinations, means_no_cat, label=f'{frac_err} No cat {z_bin[k]} {z_bin[k+1]}')
             
             axs[i].set_xlim(0)
-            axs[i].set_title(z_phot)
+            axs[i].set_title(self.sub_plot_titles[z_phot])
             axs[i].tick_params(direction='in', right=True)
         
         if zero_y_lim:
-            axs[0].set_ylim(bottom=0)
+            axs[0].set_ylim(0)
 
-        fig.subplots_adjust(wspace=0)
-        axs[0].set_xticklabels([''] + axs[i].get_xticklabels()[1:])
+        axs[0].set_xticks(axs[0].get_xticks()[1:])
         axs[0].set_ylabel(r'RMS of $\Delta z / (1 + z_\mathrm{red})$')
-        fig.supxlabel('Combinations')
+        axs[1].set_xlabel('Number of Combined Galaxies')
+
+        fig.subplots_adjust(wspace=0.05, right=0.88)
 
         # show legend only if more than one line
         if np.all([(len(ax.lines) > 1) for ax in axs]):
-            fig.legend(*axs[0].get_legend_handles_labels())
+            fig.legend(*axs[0].get_legend_handles_labels(), loc='center right', bbox_to_anchor=(1,0.5), labelcolor='linecolor', handlelength=0, handletextpad=0, frameon=True)
 
-        fig.suptitle('RMS in redshift errors')
+        if show_title:
+            fig.suptitle('RMS of Redshift Errors')
+        else:
+            fig.subplots_adjust(top=0.93)
 
         return fig
-
-    def stdev_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False, zero_y_lim:bool=False) -> plt.Figure:
+    
+    def stdev_error_combo(self, fractional_errors:list[float]=None, z_split:list[float]=[], plot_no_catastrophic:bool=False, zero_y_lim:bool=False, show_title:bool=False) -> plt.Figure:
         """
         Plot of standard deviations of errors as compared to combo values.
         Can bin sections of the redshift range.
@@ -282,9 +295,11 @@ class Analyse(ProcessData):
             Hence `[5]` will bin from [min, 5] and (5,max].
             And `[5,8]` will bin [min, 5] (5, 8] (8, max].
         plot_no_catastrophic : bool, default False
-            If True, will plot standard deviations without catastrophic errors in each case also.
+            If True, will plot means without catastrophic errors in each case also.
         zero_y_lim : bool, default False
-            If True, will set lower y limit to be zero. 
+            If True, will set lower y limit to be zero.
+        show_title : bool, default False
+            Controls if title is drawn on figure
 
         Returns
         -------
@@ -297,6 +312,12 @@ class Analyse(ProcessData):
         if fractional_errors == None:
             fractional_errors = self.frac_errors
 
+        self.sub_plot_titles = {
+            'z_int': 'Sum Before EAZY',
+            'z_mean': r'Mean of $\{z_\mathrm{best}\}$',
+            'z_chi2': r'Min of $\sum \chi^2$'
+        }
+
         # z_split masks
         z_bin = [np.min(self.z_vals), *z_split, np.max(self.z_vals)]
         bin_masks = []
@@ -308,6 +329,7 @@ class Analyse(ProcessData):
 
         # create figure
         fig, axs = plt.subplots(1, 3, sharey=True, sharex=True)
+        axs:list[plt.Axes]
 
         # plot for each method, fractional error, and z_bin
         for i, z_phot in enumerate(['z_int', 'z_mean', 'z_chi2']):
@@ -315,8 +337,8 @@ class Analyse(ProcessData):
                 frac_err_mask = (self.combo_galaxies['combo_frac_err'] == frac_err)
 
                 for k, bin_mask in enumerate(bin_masks):
-                    stdevs_all = []
-                    stdevs_no_cat = []
+                    means_all = []
+                    means_no_cat = []
 
                     for combo in self.combinations:
                         combo_mask = (self.combo_galaxies['combo'] == combo)
@@ -326,34 +348,40 @@ class Analyse(ProcessData):
                         all_frac_errors = (sub[z_phot] - sub['z_red']) / (1 + sub['z_red'])
                         no_catastrophic_mask = (all_frac_errors <= self.catastrophic)
                         
-                        stdevs_all.append(np.std(all_frac_errors))
-                        stdevs_no_cat.append(np.std(all_frac_errors[no_catastrophic_mask]))
+                        means_all.append(np.std(all_frac_errors))
+                        means_no_cat.append(np.std(all_frac_errors[no_catastrophic_mask]))
                     
                     # simplify label if only fractional error
                     if (len(z_split)==0) and (not plot_no_catastrophic):
-                        label = frac_err
+                        label = r'$\Delta = $' + f'{frac_err}'
                     else:
                         label = f'{frac_err} All {z_bin[k]} {z_bin[k+1]}'
 
-                    axs[i].plot(self.combinations, stdevs_all, label=label)
+                    axs[i].plot(self.combinations, means_all, label=label)
                     if plot_no_catastrophic:
-                        axs[i].plot(self.combinations, stdevs_no_cat, label=f'No cat {z_bin[k]} {z_bin[k+1]}')
-                
+                        axs[i].plot(self.combinations, means_no_cat, label=f'{frac_err} No cat {z_bin[k]} {z_bin[k+1]}')
+            
             axs[i].set_xlim(0)
-            axs[i].set_title(z_phot)
+            axs[i].set_title(self.sub_plot_titles[z_phot])
             axs[i].tick_params(direction='in', right=True)
         
         if zero_y_lim:
-            axs[0].set_ylim(bottom=0)
+            axs[0].set_ylim(0)
 
-        fig.subplots_adjust(wspace=0)
-        axs[0].set_xticklabels([''] + axs[i].get_xticklabels()[1:])
-        axs[0].set_ylabel(r'Std dev in $\Delta z / (1 + z_\mathrm{red})$')
-        fig.supxlabel('Combinations')
+        axs[0].set_xticks(axs[0].get_xticks()[1:])
+        axs[0].set_ylabel(r'$\sigma$ of $\Delta z / (1 + z_\mathrm{red})$')
+        axs[1].set_xlabel('Number of Combined Galaxies')
 
-        fig.legend(*axs[0].get_legend_handles_labels())
+        fig.subplots_adjust(wspace=0.05, right=0.88)
 
-        fig.suptitle('Standard deviation in redshift errors')
+        # show legend only if more than one line
+        if np.all([(len(ax.lines) > 1) for ax in axs]):
+            fig.legend(*axs[0].get_legend_handles_labels(), loc='center right', bbox_to_anchor=(1,0.5), labelcolor='linecolor', handlelength=0, handletextpad=0, frameon=True)
+
+        if show_title:
+            fig.suptitle('Std dev of Redshift Errors')
+        else:
+            fig.subplots_adjust(top=0.93)
 
         return fig
     
@@ -579,8 +607,9 @@ class SedPlot(Analyse):
 
 def main() -> None:
     ana = Analyse('1_more_variation', '1_name')
-    ana.rms_error_combo(zero_y_lim=False)
-    # ana.stdev_error_combo()
+    _ = ana.rms_error_combo()
+    _ = ana.stdev_error_combo()
+    # fig.savefig('figures/fig.png')
     plt.show()
 
 if __name__ == '__main__':
