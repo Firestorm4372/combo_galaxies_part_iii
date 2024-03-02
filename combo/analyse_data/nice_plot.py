@@ -23,7 +23,7 @@ class SaveData(analyse_data.ProcessData):
             error = difference / (1 + zred)
 
             loc = self.df_combo.columns.get_loc(z_method) + 1
-            colname = f'err_{z_method.split('_')[-1]}'
+            colname = f"err_{z_method.split('_')[-1]}"
             self.df_combo.insert(loc, colname, error)
     
     def save_dataframe(self) -> None:
