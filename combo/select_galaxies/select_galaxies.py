@@ -172,7 +172,7 @@ class Select():
             self.catalog = Table(hdul[1].data)
 
         # add in combo column to catalog
-        self.catalog.add_column(1, 2, 'combo')
+        self.catalog.add_column(0, 2, 'combo')
 
         # extract filters
         with open(filter_list) as f:
@@ -243,8 +243,8 @@ class Select():
                     frac_err_single_galaxies = single_galaxies.copy()
                     frac_err_single_galaxies.add_column(frac_err, 3, 'combo_frac_err')
                     # add relevant extra digit to ids
-                    for j, id in enumerate(frac_err_single_galaxies['id']):
-                        frac_err_single_galaxies['id'][j] += i * extra_digit_number
+                    for id in frac_err_single_galaxies['id']:
+                        id += i * extra_digit_number
 
                     # combine and add errors
                     combiner = Combine(frac_err_single_galaxies, next_combo_id(), self.filters, self.filter_errors,
@@ -366,7 +366,7 @@ class Select():
 
 def main() -> None:
     sel = Select('1_more_variation')
-    sel.create_galaxies_table([2,3], [2,3], [0.1,1])
+    print(sel.create_galaxies_table([2,3], [2,3], [0.1,1]))
 
 if __name__ == '__main__':
     main()
