@@ -134,7 +134,7 @@ class ProcessData():
 
         # go through each galaxy, see if a combo or not
         for i, galaxy in enumerate(self.all_galaxies):
-            if galaxy['combo'] != 1:
+            if galaxy['combo'] != 0:
                 indiv_range = (i+1, i+1 + galaxy['combo'])
 
                 # append zred and combo
