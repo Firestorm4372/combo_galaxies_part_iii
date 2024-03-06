@@ -90,7 +90,7 @@ class Combine():
 
 
     def _flux_normalisation(self) -> None:
-        pass
+        raise Exception('Flux normailisation not implemented. ')
 
     def _get_individual_errors(self) -> None:
         # to store errors from each, list corresponding to filters of list of each galaxy
@@ -148,6 +148,61 @@ class Combine():
         return self.galaxies
 
 
+class RandomDraw():
+    """
+    Will add Gaussian variation to all SED values, based on the error in that filter.
+    The combined SED values are then updated to be the sum of the single SEDs (errors are left unchanged).
+
+    Attributes
+    ----------
+    galaxies : Table
+        The complete galaxies table
+    filters, error_filters : list[str]
+        The filters list and error filters list
+
+    Methods
+    -------
+    add_random : Table
+        Applies the random method, and returns the table with the updated values.
+    """
+
+    def __init__(self, galaxies:Table, filters:list[str], error_filters:list[str]) -> None:
+        self.galaxies = galaxies.copy()
+        self.filters = filters
+        self.error_filters = error_filters
+
+        self.length = len(self.galaxies)
+
+    def _filter_random(self, galaxy_idx:int, filter:str, error_filter:str) -> None:
+        """Apply gaussian noise to an individual filter"""
+
+        value = self.galaxies[filter][galaxy_idx]
+        error = self.galaxies[error_filter][galaxy_idx]
+
+        new_value = np.random.normal(value, error)
+        self.galaxies[filter][galaxy_idx] = new_value
+
+    def _individual_galaxies_random(self) -> None:
+        """Iterate through all of the single galaxies, and then each filter, adding in the random error"""
+
+        # go through the indiviual galaxies
+        for i in range(1, self.length):
+            # then each filter
+            for filt, err_filt in zip(self.filters, self.error_filters):
+                self._filter_random(i, filt, err_filt)
+
+    def _new_combo_values(self) -> None:
+        """Update the combo galaxy values as the sum of the individuals."""
+
+        for filt in self.filters:
+            self.galaxies[filt][0] = np.sum(self.galaxies[filt][1:])
+
+    def add_random(self) -> Table:
+        self._individual_galaxies_random()
+        self._new_combo_values()
+
+        return self.galaxies
+
 
 class Select():
     """
@@ -189,7 +244,7 @@ class Select():
         return Table(rng.choice(sub, number, replace=False))
 
 
-    def create_galaxies_table(self, z_vals:list[float], combinations:list[int], combo_fractional_errors:list[float]=[0.1], **kwargs) -> Table:
+    def create_galaxies_table(self, z_vals:list[float], combinations:list[int], combo_fractional_errors:list[float]=[0.1], random_draw:bool=False, **kwargs) -> Table:
         """
         Select at each `z_val`, some random galaxies for each `combination`.
         Then apply relevant errors and create relevant flux combinations.
@@ -205,6 +260,8 @@ class Select():
             Size of fractional error in the combination galaxies.
             From this, errors in the galaxies that make up the combo can be found.
             Multiple values can be input as a list.
+        random_draw : bool, default False
+            Controls if random draw is applied.
 
         kwargs are passed to the `Combine` object after `combo_fractional_error`. 
 
@@ -250,6 +307,10 @@ class Select():
                     combiner = Combine(frac_err_single_galaxies, next_combo_id(), self.filters, self.filter_errors,
                                         frac_err, **kwargs)
                     galaxies = combiner.full_combine()
+
+                    if random_draw:
+                        draw = RandomDraw(galaxies, self.filters, self.filter_errors)
+                        galaxies = draw.add_random()
 
                     list_galaxies.append(galaxies)
 
@@ -325,7 +386,7 @@ class Select():
             csv_write.writerows(EAZY_rows)
 
     
-    def create_and_save_galaxies(self, z_vals:list[float], combinations:list[int], combo_fractional_errors:list[float]=[0.1],
+    def create_and_save_galaxies(self, z_vals:list[float], combinations:list[int], combo_fractional_errors:list[float]=[0.1], random_draw:bool=False,
                                  name:str='name', description:str='description', **kwargs) -> Table:
         """
         Select at each `z_val`, some random galaxies for each `combination`.
@@ -343,6 +404,8 @@ class Select():
             Size of fractional error in the combination galaxies.
             From this, errors in the galaxies that make up the combo can be found.
             Multiple values can be input as a list.
+        random_draw : bool, default False
+            Controls if random draw is applied.
         name : str, Default 'name'
             Name to save under
         description : str, Default 'description'
@@ -357,7 +420,7 @@ class Select():
             Also stored in attribute `self.all_galaxies`.
         """
 
-        self.create_galaxies_table(z_vals, combinations, combo_fractional_errors, **kwargs)
+        self.create_galaxies_table(z_vals, combinations, combo_fractional_errors, random_draw, **kwargs)
         self.save_galaxies_table(name, description)
         self.save_EAZY_file()
         return self.all_galaxies
@@ -366,7 +429,7 @@ class Select():
 
 def main() -> None:
     sel = Select('1_more_variation')
-    print(sel.create_galaxies_table([2,3], [2,3], [0.1,1]))
+    print(sel.create_galaxies_table([2,3], [2,3], [0.1,1], random_draw=True))
 
 if __name__ == '__main__':
     main()
