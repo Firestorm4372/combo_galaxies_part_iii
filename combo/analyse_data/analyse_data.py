@@ -8,7 +8,12 @@ from astropy.table import Table
 
 import eazy.hdf5
 
-class ProcessData():
+
+class Selection():
+    """
+    Internal class for opening up the galaxy selection (before was passed to EAZY)
+    """
+
     def __init__(self, folder_name:str, selection_name:str, data_path:str='.data') -> None:
         self.folder_name = folder_name
         self.selection_name = selection_name
@@ -36,14 +41,84 @@ class ProcessData():
             self.all_galaxies = Table(hdul[1].data)
 
         self.eazy_photoz_path = f'{self.selection_folder_path}/eazy_out/photoz'
+
+
+class SedPlot(Selection):
+    """
+    Faster init if just plotting SEDs. With method to plot a combo galaxy then its components.
+
+    Can pass a `PhotoZ` object to just use that instead.
+    """
+
+    def __init__(self, folder_name: str, selection_name: str, data_path: str = '.data',
+                 photoz:eazy.photoz.PhotoZ=None) -> None:
+        super().__init__(folder_name, selection_name, data_path)
+
+        if photoz == None:
+            self.photoz = eazy.hdf5.Viewer(f'{self.eazy_photoz_path}.h5')
+        else:
+            self.photoz = photoz
+            
+
+    def combo_SEDs(self, idx:int, idx_is_id:bool=False, combined_only:bool=False, **kwargs) -> tuple[list[plt.Figure], int]:
+        """
+        Display figures of all SEDs in a combo, or just the combined if `combined_only = True`.
+
+        Parameters
+        ----------
+        idx : int
+            Number of the combination galaxy to display. Count from 0. 
+        idx_is_id : bool, default False
+            If True, searches for combo galaxy with id of `idx`.
+        combined_only : bool, default False
+            If True, will only display the combo SED.
         
-        with fits.open(f'{self.eazy_photoz_path}.data.fits') as hdul:
-            self.zbest:np.ndarray = hdul[1].data
-            self.zgrid:np.ndarray = hdul[2].data
-            self.chi2:np.ndarray = hdul[3].data
-            self.coeffs:np.ndarray = hdul[4].data
-        with fits.open(f'{self.eazy_photoz_path}.zout.fits') as hdul:
-            self.zout = Table(hdul[1].data)
+        Any other kwargs are passed to `photoz.show_fit`
+
+        Returns
+        -------
+        figs : list[Figure]
+            The SED plots produced by `photoz.show_fit` for first the combo and then individual galaxies
+        combo : int
+            Combination number
+        """
+        
+        if not idx_is_id:
+            # count from first id of the combo galaxies
+            combo_id = idx + self.all_galaxies['id'][0]
+        else:
+            combo_id = idx
+
+        # get table idx of the combo galaxy
+        table_idx = np.asarray(self.all_galaxies['id'] == combo_id).nonzero()[0][0] # this works
+
+        combo = self.all_galaxies[table_idx]['combo']
+
+        if not combined_only:
+            # then take sub selection, and get ids from
+            ids = self.all_galaxies['id'][table_idx:table_idx+combo+1]
+        else:
+            ids = [combo_id]
+
+        # return figs objects only (first return of show_fit)
+        return [self.photoz.show_fit(id, **kwargs)[0] for id in ids], combo
+    
+
+class ProcessData(Selection):
+    """
+    Internal class for performing the galaxy combination.
+    """
+
+    def __init__(self, folder_name: str, selection_name: str, data_path: str = '.data') -> None:
+        super().__init__(folder_name, selection_name, data_path)
+
+        # init from hdf5
+        self.photoz = eazy.hdf5.initialize_from_hdf5(f'{self.eazy_photoz_path}.h5')
+
+        # get relevant data
+        self.zbest = self.photoz.zbest
+        self.zgrid = self.photoz.zgrid
+        self.chi2 = self.photoz.chi2_fit
 
 
     def _calc_single_combination(self, zbests, chi2s) -> tuple[float, float, np.ndarray]:
@@ -147,10 +222,17 @@ class ProcessData():
 
 
 class Analyse(ProcessData):
-    """Inherits from ProcessData
+    """
+    Basic analysis tools on output from EAZY
     
-    Additional Attributes
-    ---------------------
+    Parameters
+    ----------
+    folder_name : str
+        Folder of the catalog
+    selection_name : str
+        Folder in which the particular selection is found
+    data_path : str, default `.data`
+        Path to the data folder
     catastrophic : float, default 0.1
             Fractional error in $Delta z / (1+z)$ past which fit is considered bad
     """
@@ -540,28 +622,11 @@ class Analyse(ProcessData):
             
         return figs
     
-
-class SedPlot(Analyse):
-    """
-    Extension to Analyse that also gives option to view `eazy.PhotoZ` objects by using hdf5 file. 
-
-    Additional Attributes
-    ---------------------
-    full_photoz_init : bool, default False
-        Controls whether to do a full init of the PhotoZ object, or to just use Viewer.
-        Viewer is enough if just want SED Plots, need full for zphot_zspec etc.
-    """
     
-    def __init__(self, folder_name:str, selection_name:str, data_path:str='.data', catastrophic:float=0.1, full_photoz_init:bool=False) -> None:
-        super().__init__(folder_name, selection_name, data_path, catastrophic)
-
-        if not full_photoz_init:
-            self.photoz = eazy.hdf5.Viewer(f'{self.eazy_photoz_path}.h5')
-        else:
-            self.photoz = eazy.hdf5.initialize_from_hdf5(f'{self.eazy_photoz_path}.h5')
-
     def combo_SEDs(self, idx:int, idx_is_id:bool=False, combined_only:bool=False, **kwargs) -> tuple[list[plt.Figure], int]:
         """
+        Wrapper around `SedPlot.combo_SEDs` method.
+
         Display figures of all SEDs in a combo, or just the combined if `combined_only = True`.
 
         Parameters
@@ -582,35 +647,10 @@ class SedPlot(Analyse):
         combo : int
             Combination number
         """
-        
-        if not idx_is_id:
-            # count from first id of the combo galaxies
-            combo_id = idx + self.all_galaxies['id'][0]
-        else:
-            combo_id = idx
 
-        # get table idx of the combo galaxy
-        table_idx = np.asarray(self.all_galaxies['id'] == combo_id).nonzero()[0][0] # this works
+        if not hasattr(self, 'sedplot'):
+            self.sedplot = SedPlot(self.folder_name, self.selection_name, self.data_path, self.photoz)
 
-        combo = self.all_galaxies[table_idx]['combo']
-
-        if not combined_only:
-            # then take sub selection, and get ids from
-            ids = self.all_galaxies['id'][table_idx:table_idx+combo+1]
-        else:
-            ids = [combo_id]
-
-        # return figs objects only (first return of show_fit)
-        return [self.photoz.show_fit(id, **kwargs)[0] for id in ids], combo
-
-
-
-def main() -> None:
-    ana = Analyse('1_more_variation', '1_name')
-    _ = ana.rms_error_combo()
-    _ = ana.stdev_error_combo()
-    # fig.savefig('figures/fig.png')
-    plt.show()
-
-if __name__ == '__main__':
-    main()
+        return self.sedplot.combo_SEDs(idx, idx_is_id, combined_only, **kwargs)
+    
+    
