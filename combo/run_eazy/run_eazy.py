@@ -61,7 +61,7 @@ class RunEAZY():
     
 
     def EAZY_run(self, add_params:dict=dict(), param_file:str=None, translate_file:str='eazy_files/z_phot.translate',
-                 standard_output:bool=False):
+                 standard_output:bool=False) -> None:
         """
         Do the full EAZY run, saves hdf5 object, does not produce standard output as the default behaviour.
 
