@@ -60,22 +60,39 @@ class RunEAZY():
         self.zout, self.hdu = self.photoz.standard_output()
     
 
-    def EAZY_run(self, add_params:dict=dict(), param_file:str=None, translate_file='eazy_files/z_phot.translate',
-                 standard_output:bool=True, hdf5_file:bool=True):
+    def EAZY_run(self, add_params:dict=dict(), param_file:str=None, translate_file:str='eazy_files/z_phot.translate',
+                 standard_output:bool=False):
+        """
+        Do the full EAZY run, saves hdf5 object, does not produce standard output as the default behaviour.
+
+        Parameters
+        ----------
+        add_params : dict
+            Additional parameters passed as a dict for the `PhotoZ` init
+        param_file : str
+            Path to parameter file, if not given, a set of default parameters are used along with `add_params`.
+            If supplied, these defaults are not added, but `add_params` still passed.
+        translate_file : str, default `eazy_files/z_phot.translate`
+            Translate file to use with EAZY
+        standard_output : bool, default False
+            Controls if EAZY standard_output function is run, this takes a large amount of time, and should typically not be required.
+        """
         
         self.init_photoz(add_params, param_file, translate_file)
         self.photoz.fit_catalog()
+        eazy.hdf5.write_hdf5(self.photoz, f'{self.eazy_out_folder_path}/photoz.h5')
 
         if standard_output:
             os.makedirs(self.eazy_out_folder_path, exist_ok=True)
             self._standard_output()
         
-        if hdf5_file:
-            eazy.hdf5.write_hdf5(self.photoz, f'{self.eazy_out_folder_path}/photoz.h5')
 
     
     @classmethod
     def init_from_hdf5(cls, folder_name:str, selection_name:str, data_path:str='.data') -> None:
+        """
+        Returns a `RunEAZY` object with `photoz` initialised from hdf5.
+        """
         run = cls(folder_name, selection_name, data_path)
         run.photoz = eazy.hdf5.initialize_from_hdf5(f'{run.eazy_out_folder_path}/photoz.h5')
 
