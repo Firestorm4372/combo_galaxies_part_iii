@@ -80,10 +80,10 @@ class RunEAZY():
         
         self.init_photoz(add_params, param_file, translate_file)
         self.photoz.fit_catalog()
+        os.makedirs(self.eazy_out_folder_path, exist_ok=True)
         eazy.hdf5.write_hdf5(self.photoz, f'{self.eazy_out_folder_path}/photoz.h5')
 
         if standard_output:
-            os.makedirs(self.eazy_out_folder_path, exist_ok=True)
             self._standard_output()
         
 
