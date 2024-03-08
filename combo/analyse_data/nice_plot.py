@@ -128,7 +128,7 @@ class NicePlots():
             data=self.df
         )
 
-        rp.set(ylim=0, xlim=(2, self.combinations[-1]))
+        rp.set(ylim=0, xlim=(1, self.combinations[-1]))
         rp.legend.set_title(r'Frac Err')
         rp.set(xlabel='Number of Combined Galaxies', ylabel='Absolute Error')
         for ax, title in zip(rp.axes.flatten(), ['Pre-Integrate', 'Mean of Best', r'Min of $\sum \chi^2$']):
@@ -191,3 +191,41 @@ class NicePlots():
         )
 
         return rp
+    
+
+    def plot_abs_err_cumulative(self, frac_err:float, combos:list[int]=[1,2], col_wrap:int=2, upper_xlim:float=1) -> sns.FacetGrid:
+        """
+        Produces 'Empirical Cumulative Distribution Function' (ecdf) plot.
+        This shows the proportion with absolute errors (delta z / 1+z) below each value on the x-axis.
+
+        Parameters
+        ----------
+        frac_err : float
+            The fractional error value to view for.
+        combos : list[int], default [1,2]
+            Combo values to plot for.
+        col_wrap : int, default 2
+            Number of plots to show per row.
+        upper_xlim : float, default 1
+            Right x limit for the plot.
+            If `None` will let plotter decide.
+        """
+
+        df = self.df.query(f'(frac_err==@frac_err) and (combo in @combos)')
+
+        ecdf = sns.displot(
+            kind='ecdf',
+            x='abs_err',
+            hue='method',
+            col='combo',
+            col_wrap=col_wrap,
+            data=df
+        )
+
+        if upper_xlim == None:
+            ecdf.set(xlim=0)
+        else:
+            ecdf.set(xlim=(0,upper_xlim))
+
+        return ecdf
+
