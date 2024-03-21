@@ -57,9 +57,11 @@ class NicePlots():
         If default of None, will save in same directory as `combo_galaxies_file_path` in folder called `figures`.
         If provided, expects to have been created.
         (Doesn't include final `/`).
+    set_theme_style : bool, default True
+        Set theme and style used by Seaborn during init.
     """
 
-    def __init__(self, combo_galaxies_file_path:str, figure_save_path:str=None) -> None:
+    def __init__(self, combo_galaxies_file_path:str, figure_save_path:str=None, set_theme_style:bool=True) -> None:
         # extract relevant filepaths
         self.combo_galaxies_file_path = combo_galaxies_file_path
         self.folder_path = '/'.join(combo_galaxies_file_path.split('/')[:-1])
@@ -83,7 +85,16 @@ class NicePlots():
             os.makedirs(self.figure_save_path, exist_ok=True)
         else:
             self.figure_save_path = figure_save_path
+
+        if set_theme_style:
+            self.set_theme_style()
+
+
+    def set_theme_style(self) -> None:
+        sns.set_theme()
+        sns.set_style('whitegrid')
     
+
     @staticmethod
     def _massage(df_combo:pd.DataFrame) -> pd.DataFrame:
         """
@@ -211,12 +222,17 @@ class NicePlots():
             If `None` will let plotter decide.
         """
 
+        # colwrap of 1 only if only 1 combo
+        if len(combos) == 1:
+            col_wrap = 1
+
         df = self.df.query(f'(frac_err==@frac_err) and (combo in @combos)')
 
         ecdf = sns.displot(
             kind='ecdf',
             x='abs_err',
             hue='method',
+            hue_order=self.methods,
             col='combo',
             col_wrap=col_wrap,
             data=df
@@ -226,6 +242,12 @@ class NicePlots():
             ecdf.set(xlim=0)
         else:
             ecdf.set(xlim=(0,upper_xlim))
+        
+        for i, ax in enumerate(ecdf.axes.flatten()):
+            ax.set_xlabel(r'$|\Delta z / (1+z)|$')
+            ax.set_title(f'{combos[i]} Combination')
+
+        ecdf.legend.set_title('Method')
 
         return ecdf
 
