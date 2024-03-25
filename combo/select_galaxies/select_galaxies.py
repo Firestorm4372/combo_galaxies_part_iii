@@ -90,18 +90,28 @@ class Combine():
 
 
     def _flux_normalisation(self) -> None:
-        raise Exception('Flux normailisation not implemented. ')
+        assert self.error_filters[0] not in self.galaxies.colnames
+
+        magnitude_values = np.asarray(self.galaxies[self.magnitude_filter])
+        max_magnitude = np.max(magnitude_values)
+        factors = max_magnitude / magnitude_values
+
+        for filt in self.filters:
+            values = self.galaxies[filt]
+            normalised_values = values * factors
+            self.galaxies[filt][:] = normalised_values[:]
+
 
     def _get_individual_errors(self) -> None:
         # to store errors from each, list corresponding to filters of list of each galaxy
         indiv_filter_errors = [[] for _ in range(len(self.filters))]
 
+        if self.is_flux_normalisation:
+            self._flux_normalisation()
+
         # make sure individual filter fractional errors calculated
         if len(self.individual_fractional_errors) == 0:
             self._calc_individual_fractional_errors()
-
-        if self.is_flux_normalisation:
-            self._flux_normalisation()
 
         for gal in self.galaxies:
             # get error floor as either the constant, or as a fraction of magnitude
@@ -429,7 +439,9 @@ class Select():
 
 def main() -> None:
     sel = Select('1_more_variation')
-    print(sel.create_galaxies_table([2,3], [2,3], [0.1,1], random_draw=True))
+    tab = sel.create_galaxies_table([2,3], [2,3], [0.1,1], random_draw=True, is_flux_normalisation=True)
+    print(tab)
+    print(np.asarray(tab['F277W']))
 
 if __name__ == '__main__':
     main()
